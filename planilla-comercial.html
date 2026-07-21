@@ -6,6 +6,7 @@
 <title>Planilla Comercial — Agrop Raimondi</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f4f0;color:#1a2e1a;min-height:100vh}
@@ -506,6 +507,15 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
       </div>
       <button class="btn btn-primary btn-sm" onclick="createUser()">Crear usuario</button>
       <div id="user-msg" style="margin-top:11px;font-size:13px"></div>
+    </div>
+
+    <div class="gap"></div>
+
+    <div class="card" style="max-width:500px">
+      <h3>📥 Exportar backup a Excel</h3>
+      <p style="font-size:13px;color:#6c757d;margin-bottom:14px">Descargá todas las ventas, presupuesto e inventario en un archivo Excel. Guardalo como respaldo.</p>
+      <button class="btn btn-primary btn-sm" onclick="exportarExcel()">⬇ Descargar backup Excel</button>
+      <div id="export-msg" style="margin-top:11px;font-size:13px"></div>
     </div>
 
     <div class="gap"></div>
@@ -1301,6 +1311,71 @@ document.addEventListener('click', e=>{
   const overlay=document.getElementById('modal-overlay');
   if(e.target===overlay) closeModal();
 });
+
+// ════════════════════════════════════════════════════════
+// EXPORTAR EXCEL
+// ════════════════════════════════════════════════════════
+async function exportarExcel(){
+  const el=document.getElementById('export-msg');
+  el.textContent='Descargando datos...';
+
+  const [{data:ventas},{data:pres},{data:stock}]=await Promise.all([
+    sb.from('ventas').select('*').order('fecha',{ascending:false}),
+    sb.from('presupuesto').select('*').order('campana').order('grano'),
+    sb.from('stock').select('*').order('campana').order('grano'),
+  ]);
+
+  const wb=XLSX.utils.book_new();
+
+  // Hoja Ventas
+  const ventasRows=(ventas||[]).map(v=>({
+    'Fecha': v.fecha,
+    'Campaña': v.campana,
+    'Grano': v.grano,
+    'Tipo': v.tipo,
+    'Tons': v.tons,
+    'U$S/ton': v.usd_ton,
+    'Prima U$S/ton': v.prima_usd||'',
+    'Comprador': v.comprador||'',
+    'Comisión %': v.comision||'',
+    'Lugar entrega': v.ent_lugar||'',
+    'Fecha entrega': v.ent_fecha||'',
+    'Monto entrega': v.ent_monto||'',
+    'Entregado': v.entregado?'Sí':'No',
+    'Comentario': v.comentario||'',
+    'Cargado el': v.created_at?.split('T')[0]||'',
+  }));
+  const wsVentas=XLSX.utils.json_to_sheet(ventasRows.length?ventasRows:[{'Sin datos':''}]);
+  XLSX.utils.book_append_sheet(wb, wsVentas, 'Ventas');
+
+  // Hoja Presupuesto
+  const presRows=(pres||[]).map(p=>({
+    'Campaña': p.campana,
+    'Grano': p.grano,
+    'Tons presupuestadas': p.tons_presupuestadas,
+    'Precio objetivo U$S/ton': p.precio_objetivo||'',
+  }));
+  const wsPres=XLSX.utils.json_to_sheet(presRows.length?presRows:[{'Sin datos':''}]);
+  XLSX.utils.book_append_sheet(wb, wsPres, 'Presupuesto');
+
+  // Hoja Stock
+  const stockRows=(stock||[]).map(s=>({
+    'Campaña': s.campana,
+    'Grano': s.grano,
+    'Acopio': s.acopio,
+    'Tons': s.tons,
+    'Fecha ingreso': s.fecha_ing||'',
+    'Comentario': s.comentario||'',
+  }));
+  const wsStock=XLSX.utils.json_to_sheet(stockRows.length?stockRows:[{'Sin datos':''}]);
+  XLSX.utils.book_append_sheet(wb, wsStock, 'Stock');
+
+  // Descargar
+  const fecha=new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `backup-agrop-raimondi-${fecha}.xlsx`);
+  el.innerHTML='<span style="color:#065f46">✅ Backup descargado correctamente.</span>';
+  setTimeout(()=>el.textContent='',4000);
+}
 
 // ════════════════════════════════════════════════════════
 // UTILS
