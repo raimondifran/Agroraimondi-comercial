@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planilla Comercial — Agrop Raimondi</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f4f0;color:#1a2e1a;min-height:100vh}
+
+/* ── NAV ── */
+nav{background:#1b4332;color:#fff;padding:0 20px;display:flex;align-items:center;gap:0;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.nav-brand{font-size:17px;font-weight:800;padding:15px 0;margin-right:28px;letter-spacing:-.3px}
+.nav-brand span{color:#95d5b2}
+.nav-tab{padding:15px 18px;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;font-size:13px;font-weight:500;white-space:nowrap}
+.nav-tab:hover{background:rgba(255,255,255,.08)}
+.nav-tab.active{border-bottom-color:#52b788;color:#95d5b2}
+.nav-spacer{flex:1}
+
+/* ── LAYOUT ── */
+main{max-width:1200px;margin:0 auto;padding:24px 20px}
+.view{display:none}
+.view.active{display:block}
+
+/* ── CARDS ── */
+.card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:20px}
+
+/* ── KPI ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid #52b788}
+.kpi.orange{border-left-color:#f4a261}
+.kpi.blue{border-left-color:#4895ef}
+.kpi.red{border-left-color:#e63946}
+.kpi-label{font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.kpi-value{font-size:26px;font-weight:800;color:#1b4332;line-height:1.1}
+.kpi-sub{font-size:12px;color:#6c757d;margin-top:3px}
+
+/* ── TWO COL ── */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:780px){.two-col{grid-template-columns:1fr}.nav-tab{padding:15px 11px;font-size:12px}}
+
+/* ── PROGRESS ── */
+.grain-row{margin-bottom:14px}
+.grain-header{display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px}
+.grain-name{font-weight:700}
+.grain-stats{color:#6c757d;font-size:12px}
+.progress-bar{height:9px;background:#e9ecef;border-radius:5px;overflow:hidden}
+.progress-fill{height:100%;border-radius:5px;transition:width .6s ease}
+.pf-green{background:#52b788}
+.pf-orange{background:#f4a261}
+.pf-red{background:#e63946}
+
+/* ── FORMS ── */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group label{font-size:12px;font-weight:700;color:#495057;text-transform:uppercase;letter-spacing:.4px}
+.form-group input,.form-group select,.form-group textarea{padding:9px 11px;border:1px solid #dee2e6;border-radius:8px;font-size:14px;background:#fff;transition:border-color .15s}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:#52b788;box-shadow:0 0 0 3px rgba(82,183,136,.15)}
+input[type=number]{-moz-appearance:textfield}
+
+/* ── BUTTONS ── */
+.btn{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:600;transition:all .15s;display:inline-block}
+.btn-primary{background:#1b4332;color:#fff}
+.btn-primary:hover{background:#2d6a4f}
+.btn-green{background:#52b788;color:#fff}
+.btn-green:hover{background:#40916c}
+.btn-muted{background:#f1f3f5;color:#495057}
+.btn-muted:hover{background:#dee2e6}
+.btn-danger{background:#fff0f1;color:#e63946;border:1px solid #f9c6c9;padding:5px 10px;font-size:12px}
+.btn-danger:hover{background:#ffe3e3}
+.btn-sm{padding:7px 14px;font-size:13px}
+
+/* ── TABLES ── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f8f9fa;padding:9px 11px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#6c757d;border-bottom:2px solid #dee2e6;white-space:nowrap}
+td{padding:9px 11px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fdf8}
+
+/* ── HEADINGS ── */
+h2{font-size:21px;font-weight:800;color:#1b4332;margin-bottom:18px}
+h3{font-size:15px;font-weight:700;color:#1b4332;margin-bottom:14px}
+
+/* ── BADGES ── */
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px}
+.badge-forward{background:#e3f2fd;color:#1565c0}
+.badge-disponible{background:#e8f5e9;color:#2e7d32}
+.badge-canje{background:#fff3e0;color:#e65100}
+.badge-other{background:#f3f0ff;color:#5c21d1}
+
+/* ── ALERTS ── */
+.alert{padding:11px 15px;border-radius:8px;font-size:13px;margin-bottom:14px}
+.alert-ok{background:#d1fae5;color:#065f46}
+.alert-err{background:#fee2e2;color:#7f1d1d}
+
+/* ── FILTER BAR ── */
+.filter-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.filter-bar select,.filter-bar input{padding:7px 11px;border:1px solid #dee2e6;border-radius:8px;font-size:13px;background:#fff}
+
+/* ── SETUP ── */
+#setup{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f0f4f0;padding:20px}
+.setup-card{background:#fff;border-radius:16px;padding:40px;max-width:480px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.10)}
+.setup-card h1{font-size:24px;font-weight:800;color:#1b4332;margin-bottom:4px}
+.setup-card p{color:#6c757d;font-size:14px;margin-bottom:24px}
+.steps{background:#f0f9f4;border-radius:8px;padding:14px 16px;margin-bottom:22px;font-size:13px;line-height:1.9;color:#374151}
+.steps ol{padding-left:18px}
+.steps a{color:#2d6a4f;font-weight:600}
+
+/* ── INLINE EDIT ── */
+.pres-input{width:95px;padding:4px 7px;border:1px solid #dee2e6;border-radius:6px;font-size:13px}
+.pres-input:focus{outline:none;border-color:#52b788}
+
+canvas{max-height:270px}
+
+/* ── SQL BOX ── */
+pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-size:11px;overflow:auto;max-height:380px;line-height:1.7}
+
+/* ── SECTION GAP ── */
+.gap{height:20px}
+.row-actions{display:flex;gap:6px;align-items:center}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ SETUP ═══════════════════════════ -->
+<div id="setup">
+  <div class="setup-card">
+    <h1>🌾 Planilla Comercial</h1>
+    <p>Agrop Raimondi — Primera configuración</p>
+    <div class="steps">
+      <strong>Antes de empezar:</strong>
+      <ol>
+        <li>Creá cuenta gratuita en <a href="https://supabase.com" target="_blank">supabase.com</a></li>
+        <li>Creá un proyecto nuevo</li>
+        <li>En <strong>SQL Editor</strong>, ejecutá el script SQL (disponible en Configuración)</li>
+        <li>En <strong>Settings → API</strong>, copiá la URL y la clave <em>anon</em></li>
+      </ol>
+    </div>
+    <div class="form-group" style="margin-bottom:13px">
+      <label>URL del proyecto Supabase</label>
+      <input type="text" id="s-url" placeholder="https://xxxxxxxxxxx.supabase.co">
+    </div>
+    <div class="form-group" style="margin-bottom:22px">
+      <label>Clave anon (pública)</label>
+      <input type="text" id="s-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6Ikp...">
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:12px" onclick="doSetup()">Conectar y comenzar →</button>
+    <div id="setup-msg" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ APP ════════════════════════════ -->
+<!-- ═══════════════════════════ LOGIN ═══════════════════════════ -->
+<div id="login" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:#f0f4f0;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:40px;max-width:400px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.10)">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:40px;margin-bottom:8px">🌾</div>
+      <h1 style="font-size:22px;font-weight:800;color:#1b4332;margin-bottom:4px">Planilla Comercial</h1>
+      <p style="color:#6c757d;font-size:13px">Agrop Raimondi</p>
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Email</label>
+      <input type="email" id="l-email" placeholder="tu@email.com" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="form-group" style="margin-bottom:22px">
+      <label>Contraseña</label>
+      <input type="password" id="l-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px" onclick="doLogin()">Ingresar →</button>
+    <div id="login-msg" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+
+<nav>
+  <div class="nav-brand">🌾 Agrop <span>Raimondi</span></div>
+  <div class="nav-tab active" id="tab-dash" onclick="nav('dash')">📊 Dashboard</div>
+  <div class="nav-tab" id="tab-venta" onclick="nav('venta')">➕ Nueva Venta</div>
+  <div class="nav-tab" id="tab-stock" onclick="nav('stock')">🏭 Inventario</div>
+  <div class="nav-tab" id="tab-hist" onclick="nav('hist')">📋 Historial</div>
+  <div class="nav-tab" id="tab-pres" onclick="nav('pres')">🎯 Presupuesto</div>
+  <div class="nav-spacer"></div>
+  <div style="padding:0 12px;display:flex;align-items:center;gap:10px">
+    <span id="nav-user" style="font-size:12px;color:#95d5b2;opacity:.8"></span>
+    <button onclick="doLogout()" style="padding:6px 12px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;font-size:12px;cursor:pointer">Salir</button>
+  </div>
+  <div class="nav-tab" id="tab-conf" onclick="nav('conf')">⚙ Config</div>
+</nav>
+
+<main>
+
+  <!-- ─────────────── DASHBOARD ─────────────── -->
+  <div id="view-dash" class="view active">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+      <h2 style="margin:0">Dashboard Comercial</h2>
+      <select id="dash-campaña" onchange="loadDash()" style="padding:7px 12px;border:1px solid #dee2e6;border-radius:8px;font-size:13px;background:#fff;font-weight:600">
+        <option value="25/26">Campaña 25/26</option>
+        <option value="24/25">Campaña 24/25</option>
+        <option value="26/27">Campaña 26/27</option>
+      </select>
+    </div>
+
+    <div class="kpi-grid" id="kpis">
+      <div class="kpi"><div class="kpi-label">Total Comprometido</div><div class="kpi-value" id="kpi-tons">—</div><div class="kpi-sub">toneladas</div></div>
+      <div class="kpi orange"><div class="kpi-label">Valor Total</div><div class="kpi-value" id="kpi-valor">—</div><div class="kpi-sub">USD</div></div>
+      <div class="kpi blue"><div class="kpi-label">Precio Prom. Ponderado</div><div class="kpi-value" id="kpi-precio">—</div><div class="kpi-sub">USD / tonelada</div></div>
+      <div class="kpi" style="border-left-color:#e63946"><div class="kpi-label">⚠ A Fijar</div><div class="kpi-value" id="kpi-afijar">—</div><div class="kpi-sub" id="kpi-afijar-sub">toneladas sin precio</div></div>
+    </div>
+
+    <!-- Resumen por tipo -->
+    <div class="two-col" style="margin-bottom:20px">
+      <div class="card" style="border-top:3px solid #4895ef">
+        <h3 style="color:#2e7d32">🏭 Stock en Acopio</h3>
+        <p style="font-size:12px;color:#6c757d;margin-bottom:12px">Grano disponible para vender por acopio</p>
+        <div id="fwd-detail">Cargando...</div>
+      </div>
+      <div class="card" style="border-top:3px solid #e63946">
+        <h3 style="color:#1565c0">📦 Forward Pendiente de Entrega</h3>
+        <p style="font-size:12px;color:#6c757d;margin-bottom:12px">Precio fijado · pendiente entrega física</p>
+        <div id="afijar-detail">Cargando...</div>
+      </div>
+    </div>
+
+    <!-- Precios promedio -->
+    <div class="card">
+      <h3>Precios Promedio por Grano (U$S/tn)</h3>
+      <div class="table-wrap" id="precio-table">Cargando...</div>
+    </div>
+
+    <!-- Tabla detalle por grano -->
+    <div class="card">
+      <h3>Detalle por Grano</h3>
+      <div class="table-wrap" id="grain-table">Cargando...</div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <h3>Progreso vs Presupuesto</h3>
+        <div id="grain-prog">Cargando...</div>
+      </div>
+      <div class="card">
+        <h3>Vendido por tipo (tn)</h3>
+        <canvas id="chart-main"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Últimas ventas</h3>
+      <div class="table-wrap" id="dash-recent">Cargando...</div>
+    </div>
+  </div>
+
+  <!-- ─────────────── NUEVA VENTA ─────────────── -->
+  <div id="view-venta" class="view">
+    <h2>Cargar Nueva Venta</h2>
+    <div class="card">
+      <div id="venta-alert"></div>
+      <form onsubmit="submitVenta(event)">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Fecha *</label>
+            <input type="date" id="v-fecha" required>
+          </div>
+          <div class="form-group">
+            <label>Campaña *</label>
+            <select id="v-campaña" required>
+              <option value="25/26">25/26</option>
+              <option value="26/27">26/27</option>
+              <option value="24/25">24/25</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Grano *</label>
+            <select id="v-grano" required>
+              <option value="">— Seleccionar —</option>
+              <option>Trigo</option><option>Cebada F</option><option>Cebada C</option>
+              <option>Girasol</option><option>Maíz</option><option>Soja</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tipo *</label>
+            <select id="v-tipo" required>
+              <option value="">— Seleccionar —</option>
+              <option>Forward</option><option>Disponible</option>
+              <option>Canje</option><option>A fijar</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Toneladas *</label>
+            <input type="number" id="v-tons" step="0.001" min="0.001" placeholder="0.000" required>
+          </div>
+          <div class="form-group">
+            <label>U$S / Tonelada *</label>
+            <input type="number" id="v-usd" step="0.01" min="0" placeholder="0.00" required>
+          </div>
+          <div class="form-group">
+            <label>Prima (U$S/ton)</label>
+            <input type="number" id="v-prima" step="0.01" placeholder="Opcional">
+          </div>
+          <div class="form-group">
+            <label>Comprador</label>
+            <select id="v-comprador">
+              <option value="">— Seleccionar —</option>
+              <option>ACA</option><option>IRIBERRI</option><option>AGROGENERALES</option>
+              <option>RURAL CERES</option><option>NAVAS</option><option>SILOS/bolsa</option>
+              <option>Mingari</option><option>Coop Neco</option><option>OTRO</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Comisión %</label>
+            <input type="number" id="v-com" step="0.1" min="0" placeholder="Ej: 1.5">
+          </div>
+        </div>
+
+        <div style="margin:18px 0 12px;font-weight:700;color:#6c757d;font-size:12px;text-transform:uppercase;letter-spacing:.5px">Datos de Entrega (opcional)</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Lugar de entrega</label>
+            <input type="text" id="v-lugar" placeholder="Ej: ACA Necochea">
+          </div>
+          <div class="form-group">
+            <label>Fecha entrega</label>
+            <input type="date" id="v-efecha">
+          </div>
+          <div class="form-group">
+            <label>Monto entrega (U$S)</label>
+            <input type="number" id="v-emonto" step="0.01" placeholder="Opcional">
+          </div>
+          <div class="form-group">
+            <label>Comentario</label>
+            <input type="text" id="v-com2" placeholder="Ej: enero-marzo, canje semilla...">
+          </div>
+        </div>
+
+        <div style="margin-top:22px;display:flex;gap:10px;justify-content:flex-end">
+          <button type="button" class="btn btn-muted" onclick="resetVenta()">Limpiar</button>
+          <button type="submit" class="btn btn-primary">💾 Guardar Venta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─────────────── INVENTARIO / STOCK ─────────────── -->
+  <div id="view-stock" class="view">
+    <h2>Inventario por Acopio</h2>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+        <select id="st-c" onchange="loadStock()" style="padding:7px 12px;border:1px solid #dee2e6;border-radius:8px;font-size:13px;background:#fff;font-weight:600">
+          <option value="25/26">Campaña 25/26</option>
+          <option value="26/27">Campaña 26/27</option>
+          <option value="24/25">Campaña 24/25</option>
+        </select>
+        <button class="btn btn-green btn-sm" onclick="showAddStock()">+ Agregar stock</button>
+      </div>
+      <div class="table-wrap" id="stock-table">Cargando...</div>
+      <div id="add-stock" style="display:none;margin-top:18px;padding:18px;background:#f0f9f4;border-radius:10px">
+        <h3>Nuevo ingreso de stock</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Grano</label>
+            <select id="sk-g">
+              <option>Trigo</option><option>Cebada F</option><option>Cebada C</option>
+              <option>Girasol</option><option>Maíz</option><option>Soja</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Acopio / Lugar</label>
+            <input type="text" id="sk-lugar" placeholder="Ej: ACA Necochea, Bolsa propia...">
+          </div>
+          <div class="form-group">
+            <label>Toneladas</label>
+            <input type="number" id="sk-tons" step="0.001" placeholder="0.000">
+          </div>
+          <div class="form-group">
+            <label>Fecha ingreso</label>
+            <input type="date" id="sk-fecha">
+          </div>
+          <div class="form-group">
+            <label>Comentario</label>
+            <input type="text" id="sk-com" placeholder="Opcional">
+          </div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="saveStock()">Guardar</button>
+          <button class="btn btn-muted btn-sm" onclick="document.getElementById('add-stock').style.display='none'">Cancelar</button>
+        </div>
+        <div id="stock-msg" style="margin-top:10px;font-size:13px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Resumen por Grano</h3>
+      <div class="table-wrap" id="stock-resumen">Cargando...</div>
+    </div>
+  </div>
+
+  <!-- ─────────────── HISTORIAL ─────────────── -->
+  <div id="view-hist" class="view">
+    <h2>Historial de Ventas</h2>
+    <div class="card">
+      <div class="filter-bar">
+        <select id="h-c" onchange="loadHist()">
+          <option value="">Todas las campañas</option>
+          <option value="25/26">25/26</option><option value="24/25">24/25</option><option value="26/27">26/27</option>
+        </select>
+        <select id="h-g" onchange="loadHist()">
+          <option value="">Todos los granos</option>
+          <option>Trigo</option><option>Cebada F</option><option>Cebada C</option>
+          <option>Girasol</option><option>Maíz</option><option>Soja</option>
+        </select>
+        <select id="h-t" onchange="loadHist()">
+          <option value="">Todos los tipos</option>
+          <option>Forward</option><option>Disponible</option><option>Canje</option><option>A fijar</option>
+        </select>
+        <input id="h-b" placeholder="Buscar comprador..." oninput="loadHist()" style="min-width:140px">
+      </div>
+      <div class="table-wrap" id="hist-table">Cargando...</div>
+      <div id="hist-totals" style="margin-top:12px;font-size:12px;color:#6c757d;font-weight:600"></div>
+    </div>
+  </div>
+
+  <!-- ─────────────── PRESUPUESTO ─────────────── -->
+  <div id="view-pres" class="view">
+    <h2>Gestión del Presupuesto</h2>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+        <select id="p-c" onchange="loadPres()" style="padding:7px 12px;border:1px solid #dee2e6;border-radius:8px;font-size:13px;background:#fff;font-weight:600">
+          <option value="25/26">Campaña 25/26</option>
+          <option value="26/27">Campaña 26/27</option>
+          <option value="24/25">Campaña 24/25</option>
+        </select>
+        <button class="btn btn-green btn-sm" onclick="showAddPres()">+ Agregar grano</button>
+      </div>
+      <div class="table-wrap" id="pres-table">Cargando...</div>
+
+      <div id="add-pres" style="display:none;margin-top:18px;padding:18px;background:#f0f9f4;border-radius:10px">
+        <h3>Nueva fila de presupuesto</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Grano</label>
+            <select id="np-g">
+              <option>Trigo</option><option>Cebada F</option><option>Cebada C</option>
+              <option>Girasol</option><option>Maíz</option><option>Soja</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Toneladas presupuestadas</label>
+            <input type="number" id="np-t" step="0.001" placeholder="0.000">
+          </div>
+          <div class="form-group">
+            <label>Precio objetivo (U$S/ton)</label>
+            <input type="number" id="np-p" step="0.01" placeholder="0.00">
+          </div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="savePres()">Guardar</button>
+          <button class="btn btn-muted btn-sm" onclick="document.getElementById('add-pres').style.display='none'">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── CONFIG ─────────────── -->
+  <div id="view-conf" class="view">
+    <h2>Configuración</h2>
+
+    <div class="card" style="max-width:500px">
+      <h3>Conexión a Supabase</h3>
+      <div class="form-group" style="margin-bottom:13px">
+        <label>URL del proyecto</label>
+        <input type="text" id="c-url" placeholder="https://xxxxxxxxxxx.supabase.co">
+      </div>
+      <div class="form-group" style="margin-bottom:20px">
+        <label>Clave anon</label>
+        <input type="text" id="c-key" placeholder="eyJhbGci...">
+      </div>
+      <button class="btn btn-primary" onclick="saveConf()">Guardar conexión</button>
+      <div id="conf-msg" style="margin-top:11px"></div>
+    </div>
+
+    <div class="gap"></div>
+
+    <div class="card" style="max-width:600px">
+      <h3>Script SQL — Ejecutar una sola vez en Supabase</h3>
+      <p style="font-size:13px;color:#6c757d;margin-bottom:11px">Copiá y pegá esto en el <strong>SQL Editor</strong> de tu proyecto Supabase.</p>
+      <pre class="sql" id="sql-box"></pre>
+      <button class="btn btn-muted btn-sm" style="margin-top:11px" onclick="copySql()">📋 Copiar SQL</button>
+    </div>
+
+    <div class="gap"></div>
+
+    <div class="card" style="max-width:500px">
+      <h3>Gestión de Usuarios</h3>
+      <p style="font-size:13px;color:#6c757d;margin-bottom:14px">Para agregar o eliminar usuarios, ingresá al panel de Supabase → <strong>Authentication → Users</strong> → "Invite user". El usuario recibirá un email para crear su contraseña.</p>
+      <div class="form-group" style="margin-bottom:13px">
+        <label>Crear nuevo usuario (desde acá)</label>
+        <input type="email" id="new-user-email" placeholder="nuevo@email.com">
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label>Contraseña inicial</label>
+        <input type="password" id="new-user-pass" placeholder="Mínimo 6 caracteres">
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="createUser()">Crear usuario</button>
+      <div id="user-msg" style="margin-top:11px;font-size:13px"></div>
+    </div>
+
+    <div class="gap"></div>
+
+    <div class="card" style="max-width:500px">
+      <h3>Importar datos históricos del Excel</h3>
+      <p style="font-size:13px;color:#6c757d;margin-bottom:14px">Cargá de una vez todos los datos que ya tenías en la planilla.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="importVentas()">Importar 19 ventas 25/26</button>
+        <button class="btn btn-green btn-sm" onclick="importPres()">Importar presupuesto 25/26</button>
+      </div>
+      <div id="imp-msg" style="margin-top:12px;font-size:13px"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ─── MODAL EDITAR VENTA ─── -->
+<div id="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:28px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h3 style="margin:0">✏️ Editar Venta</h3>
+      <button onclick="closeModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#6c757d">✕</button>
+    </div>
+    <input type="hidden" id="edit-id">
+    <div class="form-grid">
+      <div class="form-group"><label>Fecha *</label><input type="date" id="edit-fecha" required></div>
+      <div class="form-group"><label>Campaña *</label>
+        <select id="edit-campaña">
+          <option value="25/26">25/26</option><option value="26/27">26/27</option><option value="24/25">24/25</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Grano *</label>
+        <select id="edit-grano">
+          <option>Trigo</option><option>Cebada F</option><option>Cebada C</option>
+          <option>Girasol</option><option>Maíz</option><option>Soja</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Tipo *</label>
+        <select id="edit-tipo">
+          <option>Forward</option><option>Disponible</option><option>Canje</option><option>A fijar</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Toneladas *</label><input type="number" id="edit-tons" step="0.001" min="0.001"></div>
+      <div class="form-group"><label>U$S / Tonelada *</label><input type="number" id="edit-usd" step="0.01" min="0"></div>
+      <div class="form-group"><label>Prima (U$S/ton)</label><input type="number" id="edit-prima" step="0.01"></div>
+      <div class="form-group"><label>Comprador</label>
+        <select id="edit-comprador">
+          <option value="">— Seleccionar —</option>
+          <option>ACA</option><option>IRIBERRI</option><option>AGROGENERALES</option>
+          <option>RURAL CERES</option><option>NAVAS</option><option>SILOS/bolsa</option>
+          <option>Mingari</option><option>Coop Neco</option><option>OTRO</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Comisión %</label><input type="number" id="edit-com" step="0.1" min="0"></div>
+      <div class="form-group"><label>Lugar entrega</label><input type="text" id="edit-lugar"></div>
+      <div class="form-group"><label>Fecha entrega</label><input type="date" id="edit-efecha"></div>
+      <div class="form-group"><label>Monto entrega (U$S)</label><input type="number" id="edit-emonto" step="0.01"></div>
+      <div class="form-group" style="grid-column:1/-1"><label>Comentario</label><input type="text" id="edit-com2"></div>
+    </div>
+    <div id="edit-alert" style="margin-top:14px"></div>
+    <div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-muted" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEdit()">💾 Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- #app -->
+
+<script>
+// ════════════════════════════════════════════════════════
+// DATA CONSTANTS
+// ════════════════════════════════════════════════════════
+const SQL = `-- ▶ Ejecutar en SQL Editor de Supabase (una sola vez)
+
+CREATE TABLE IF NOT EXISTS ventas (
+  id          bigserial PRIMARY KEY,
+  created_at  timestamptz DEFAULT now(),
+  fecha       date        NOT NULL,
+  campana     text        NOT NULL,
+  grano       text        NOT NULL,
+  tipo        text        NOT NULL,
+  tons        float       NOT NULL,
+  usd_ton     float       NOT NULL,
+  prima_usd   float,
+  comprador   text,
+  comision    float,
+  ent_lugar   text,
+  ent_fecha   date,
+  ent_monto   float,
+  comentario  text
+);
+
+CREATE TABLE IF NOT EXISTS presupuesto (
+  id                  bigserial PRIMARY KEY,
+  campana             text  NOT NULL,
+  grano               text  NOT NULL,
+  tons_presupuestadas float NOT NULL,
+  precio_objetivo     float,
+  UNIQUE (campana, grano)
+);
+
+CREATE TABLE IF NOT EXISTS stock (
+  id          bigserial PRIMARY KEY,
+  created_at  timestamptz DEFAULT now(),
+  campana     text  NOT NULL,
+  grano       text  NOT NULL,
+  acopio      text  NOT NULL,
+  tons        float NOT NULL,
+  fecha_ing   date,
+  comentario  text
+);
+
+-- Agregar columna entregado si no existe (para marcar FWD entregados)
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS entregado boolean DEFAULT false;
+
+ALTER TABLE ventas      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE presupuesto ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stock       ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS open_ventas ON ventas;
+DROP POLICY IF EXISTS open_pres   ON presupuesto;
+DROP POLICY IF EXISTS open_stock  ON stock;
+CREATE POLICY open_ventas ON ventas      FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY open_pres   ON presupuesto FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY open_stock  ON stock       FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');`;
+
+const VENTAS_HIST = [
+  {fecha:'2025-10-07',campana:'25/26',grano:'Cebada C',tipo:'Forward',tons:148.055,usd_ton:208,prima_usd:null,comprador:'ACA',comentario:null},
+  {fecha:'2025-10-01',campana:'25/26',grano:'Cebada C',tipo:'Forward',tons:300,usd_ton:215,prima_usd:null,comprador:'IRIBERRI',comentario:'enero-marzo'},
+  {fecha:'2025-09-19',campana:'25/26',grano:'Girasol',tipo:'Forward',tons:200,usd_ton:300,prima_usd:40,comprador:'AGROGENERALES',comentario:null},
+  {fecha:'2025-10-28',campana:'25/26',grano:'Soja',tipo:'Forward',tons:200,usd_ton:320,prima_usd:null,comprador:'ACA',comentario:'julio'},
+  {fecha:'2025-11-13',campana:'25/26',grano:'Maíz',tipo:'Forward',tons:300,usd_ton:185,prima_usd:null,comprador:'AGROGENERALES',comentario:'agosto'},
+  {fecha:'2025-12-11',campana:'25/26',grano:'Cebada F',tipo:'Disponible',tons:208.87,usd_ton:185,prima_usd:null,comprador:'ACA',comentario:null},
+  {fecha:'2025-12-17',campana:'25/26',grano:'Cebada F',tipo:'Forward',tons:200,usd_ton:190,prima_usd:null,comprador:'ACA',comentario:'enero'},
+  {fecha:'2025-12-22',campana:'25/26',grano:'Cebada C',tipo:'Disponible',tons:150,usd_ton:210,prima_usd:null,comprador:'ACA',comentario:null},
+  {fecha:'2025-12-30',campana:'25/26',grano:'Cebada F',tipo:'Forward',tons:408.771,usd_ton:195,prima_usd:null,comprador:'ACA',comentario:'marzo'},
+  {fecha:'2026-01-12',campana:'25/26',grano:'Cebada C',tipo:'Disponible',tons:200,usd_ton:215,prima_usd:null,comprador:'IRIBERRI',comentario:null},
+  {fecha:'2026-01-20',campana:'25/26',grano:'Cebada F',tipo:'Disponible',tons:593.801,usd_ton:197,prima_usd:null,comprador:'ACA',comentario:'febrero-marzo'},
+  {fecha:'2026-04-15',campana:'25/26',grano:'Cebada C',tipo:'Disponible',tons:229.57,usd_ton:225,prima_usd:null,comprador:'IRIBERRI',comentario:'hasta 15/07'},
+  {fecha:'2026-04-08',campana:'25/26',grano:'Cebada F',tipo:'Disponible',tons:46.727,usd_ton:197,prima_usd:null,comprador:'ACA',comentario:'canje'},
+  {fecha:'2025-12-30',campana:'25/26',grano:'Cebada C',tipo:'Canje',tons:41.92,usd_ton:204,prima_usd:null,comprador:'IRIBERRI',comentario:null},
+  {fecha:'2026-01-09',campana:'25/26',grano:'Cebada C',tipo:'Disponible',tons:33.9,usd_ton:204,prima_usd:null,comprador:'IRIBERRI',comentario:null},
+  {fecha:'2026-01-10',campana:'25/26',grano:'Cebada C',tipo:'Disponible',tons:84.26,usd_ton:204,prima_usd:null,comprador:'IRIBERRI',comentario:null},
+  {fecha:'2026-05-07',campana:'25/26',grano:'Cebada C',tipo:'Forward',tons:400,usd_ton:240,prima_usd:null,comprador:'IRIBERRI',comentario:null},
+  {fecha:'2026-07-07',campana:'25/26',grano:'Girasol',tipo:'Forward',tons:120,usd_ton:400,prima_usd:null,comprador:'AGROGENERALES',comentario:null},
+  {fecha:'2026-07-20',campana:'25/26',grano:'Cebada C',tipo:'Disponible',tons:263.26,usd_ton:235,prima_usd:null,comprador:'ACA',comentario:null},
+];
+
+const PRES_HIST = [
+  {campana:'25/26',grano:'Trigo',tons_presupuestadas:537,precio_objetivo:280},
+  {campana:'25/26',grano:'Cebada F',tons_presupuestadas:1458,precio_objetivo:195},
+  {campana:'25/26',grano:'Cebada C',tons_presupuestadas:1450,precio_objetivo:215},
+  {campana:'25/26',grano:'Girasol',tons_presupuestadas:631,precio_objetivo:350},
+  {campana:'25/26',grano:'Maíz',tons_presupuestadas:300,precio_objetivo:185},
+  {campana:'25/26',grano:'Soja',tons_presupuestadas:1052,precio_objetivo:330},
+];
+
+const GRAINS = ['Trigo','Cebada F','Cebada C','Girasol','Maíz','Soja'];
+
+// ════════════════════════════════════════════════════════
+// SUPABASE
+// ════════════════════════════════════════════════════════
+let sb;
+function initSb(url,key){ sb = supabase.createClient(url,key); }
+
+// ════════════════════════════════════════════════════════
+// SETUP
+// ════════════════════════════════════════════════════════
+async function doSetup(){
+  const url=v('s-url').trim(), key=v('s-key').trim();
+  if(!url||!key){return setMsg('setup-msg','Completá los dos campos.','err');}
+  initSb(url,key);
+  const {error}=await sb.from('ventas').select('id').limit(1);
+  if(error){return setMsg('setup-msg','Error de conexión: '+error.message+'. ¿Ejecutaste el script SQL?','err');}
+  localStorage.setItem('sb_url',url);
+  localStorage.setItem('sb_key',key);
+  startApp();
+}
+
+// ════════════════════════════════════════════════════════
+// APP INIT
+// ════════════════════════════════════════════════════════
+window.onload=async function(){
+  document.getElementById('sql-box').textContent=SQL;
+  const url=localStorage.getItem('sb_url'), key=localStorage.getItem('sb_key');
+  if(!url||!key){
+    document.getElementById('setup').style.display='flex';
+    return;
+  }
+  initSb(url,key);
+  // Check if already logged in
+  const {data:{session}}=await sb.auth.getSession();
+  if(session){
+    showApp(session.user);
+  } else {
+    showLogin();
+  }
+  // Listen for auth changes
+  sb.auth.onAuthStateChange((_,session)=>{
+    if(session) showApp(session.user);
+    else showLogin();
+  });
+};
+
+function showLogin(){
+  document.getElementById('setup').style.display='none';
+  document.getElementById('login').style.display='flex';
+  document.getElementById('app').style.display='none';
+}
+
+function showApp(user){
+  document.getElementById('setup').style.display='none';
+  document.getElementById('login').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('nav-user').textContent=user?.email||'';
+  document.getElementById('v-fecha').value=today();
+  const url=localStorage.getItem('sb_url')||'';
+  const key=localStorage.getItem('sb_key')||'';
+  document.getElementById('c-url').value=url;
+  document.getElementById('c-key').value=key;
+  nav('dash');
+}
+
+async function startApp(){
+  document.getElementById('setup').style.display='none';
+  const {data:{session}}=await sb.auth.getSession();
+  if(session) showApp(session.user);
+  else showLogin();
+}
+
+// ════════════════════════════════════════════════════════
+// AUTH
+// ════════════════════════════════════════════════════════
+async function doLogin(){
+  const email=v('l-email').trim(), pass=v('l-pass');
+  if(!email||!pass){return setMsg('login-msg','Completá email y contraseña.','err');}
+  document.querySelector('#login button').textContent='Ingresando...';
+  const {error}=await sb.auth.signInWithPassword({email,password:pass});
+  document.querySelector('#login button').textContent='Ingresar →';
+  if(error){return setMsg('login-msg',error.message==='Invalid login credentials'?'Email o contraseña incorrectos.':'Error: '+error.message,'err');}
+  // onAuthStateChange handles the redirect
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+}
+
+async function createUser(){
+  const email=v('new-user-email').trim(), pass=v('new-user-pass');
+  if(!email||!pass){setMsg('user-msg','Completá email y contraseña.','err');return;}
+  if(pass.length<6){setMsg('user-msg','La contraseña debe tener al menos 6 caracteres.','err');return;}
+  const {error}=await sb.auth.admin?.createUser({email,password:pass,email_confirm:true})
+    .catch(()=>({error:{message:'No autorizado. Creá el usuario desde Supabase → Authentication → Users.'}}));
+  if(error){
+    // Fallback: try signUp (works if email confirmations are disabled)
+    const {error:e2}=await sb.auth.signUp({email,password:pass,options:{data:{created_by:'admin'}}});
+    if(e2){return setMsg('user-msg','Error: '+e2.message+'. Creá el usuario desde Supabase → Authentication → Users.','err');}
+  }
+  setMsg('user-msg','✅ Usuario creado: '+email,'ok');
+  document.getElementById('new-user-email').value='';
+  document.getElementById('new-user-pass').value='';
+}
+
+// ════════════════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════════════════
+let mainChart=null;
+function nav(id){
+  ['dash','venta','hist','pres','conf'].forEach(x=>{
+    document.getElementById('view-'+x).classList.remove('active');
+    document.getElementById('tab-'+x).classList.remove('active');
+  });
+  document.getElementById('view-'+id).classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+  if(id==='dash') loadDash();
+  if(id==='hist') loadHist();
+  if(id==='pres') loadPres();
+}
+
+// ════════════════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════════════════
+async function loadDash(){
+  const campana=document.getElementById('dash-campaña').value;
+
+  const [{data:ventas},{data:pres},{data:stockData}]=await Promise.all([
+    sb.from('ventas').select('*').order('fecha',{ascending:false}),
+    sb.from('presupuesto').select('*').eq('campana',campana),
+    sb.from('stock').select('*').eq('campana',campana)
+  ]);
+
+  const vc=ventas?.filter(v=>v.campana===campana)||[];
+
+  // Maps por tipo y grano
+  const pmap={}; (pres||[]).forEach(p=>pmap[p.grano]=p);
+
+  // Stock por grano (total en acopio)
+  const stockByGrain={};
+  GRAINS.forEach(g=>stockByGrain[g]=0);
+  (stockData||[]).forEach(s=>{ if(stockByGrain[s.grano]!==undefined) stockByGrain[s.grano]+=s.tons; });
+
+  // Ventas por tipo: solo FORWARD NO ENTREGADOS como "compromiso pendiente"
+  const fwdPend={},fwdEnt={},disMap={},canMap={},afMap={};
+  GRAINS.forEach(g=>{fwdPend[g]=0;fwdEnt[g]=0;disMap[g]=0;canMap[g]=0;afMap[g]=0;});
+  vc.forEach(v=>{
+    if(v.tipo==='Forward'){
+      if(v.entregado) fwdEnt[v.grano]+=v.tons;
+      else fwdPend[v.grano]+=v.tons;
+    } else if(v.tipo==='Disponible') disMap[v.grano]+=v.tons;
+    else if(v.tipo==='Canje') canMap[v.grano]+=v.tons;
+    else afMap[v.grano]+=v.tons;
+  });
+
+  // Total comprometido (sin importar si entregado)
+  const totByGrain={};
+  GRAINS.forEach(g=>totByGrain[g]=(fwdPend[g]||0)+(fwdEnt[g]||0)+(disMap[g]||0)+(canMap[g]||0)+(afMap[g]||0));
+
+  // KPIs
+  const vcSinAf=vc.filter(v=>v.tipo!=='A fijar');
+  const totTons=vc.reduce((s,v)=>s+v.tons,0);
+  const totValor=vcSinAf.reduce((s,v)=>s+(v.tons*v.usd_ton+(v.prima_usd||0)*v.tons),0);
+  const tonsSinAf=vcSinAf.reduce((s,v)=>s+v.tons,0);
+  const precProm=tonsSinAf>0?totValor/tonsSinAf:0;
+  const tonsAf=GRAINS.reduce((s,g)=>s+afMap[g],0);
+  const totStock=GRAINS.reduce((s,g)=>s+stockByGrain[g],0);
+
+  set('kpi-tons', fmt(totTons)+' tn');
+  set('kpi-valor','U$S '+fmtM(totValor));
+  set('kpi-precio','U$S '+fmt(precProm,0));
+  set('kpi-afijar', fmt(tonsAf)+' tn');
+  set('kpi-afijar-sub', tonsAf>0?'sin precio fijado aún':'sin posiciones a fijar');
+
+  // ── STOCK DISPONIBLE para vender ──
+  const stockHtml = buildStockCard(stockData||[], vc);
+  set('fwd-detail', stockHtml);
+
+  // ── FORWARD PENDIENTE DE ENTREGA ──
+  const fwdGrains=GRAINS.filter(g=>fwdPend[g]>0);
+  let afwdHtml='';
+  if(!fwdGrains.length){
+    afwdHtml='<p style="color:#6c757d;font-size:13px">Sin contratos forward pendientes de entrega.</p>';
+  } else {
+    afwdHtml='<table><thead><tr><th>Grano</th><th>Tons pendientes</th><th>Total FWD</th><th>% del presup.</th><th>Precio prom.</th><th>Comprador</th><th>Entrega</th></tr></thead><tbody>';
+    fwdGrains.forEach(g=>{
+      const vfwd=vc.filter(v=>v.grano===g&&v.tipo==='Forward'&&!v.entregado);
+      const tF=fwdPend[g];
+      const tFtotal=(fwdPend[g]||0)+(fwdEnt[g]||0);
+      const bud=pmap[g]?.tons_presupuestadas||0;
+      const pctFwd=bud>0?(tFtotal/bud*100):0;
+      const valF=vfwd.reduce((s,v)=>s+v.tons*(v.usd_ton+(v.prima_usd||0)),0);
+      const pF=tF>0?valF/tF:0;
+      const lugares=[...new Set(vfwd.map(v=>v.ent_lugar||v.comentario).filter(Boolean))].join(', ')||'—';
+      const compradores=[...new Set(vfwd.map(v=>v.comprador).filter(Boolean))].join(', ')||'—';
+      const pctColor=pctFwd<30?'#2e7d32':pctFwd<70?'#e65100':'#c62828';
+      afwdHtml+=`<tr>
+        <td><strong>${g}</strong></td>
+        <td><span style="font-weight:700;color:#1565c0">${fmt(tF)} tn</span></td>
+        <td style="color:#6c757d">${fmt(tFtotal)} tn</td>
+        <td><span style="font-weight:700;color:${pctColor}">${pctFwd.toFixed(0)}%</span></td>
+        <td>U$S ${fmt(pF,0)}/tn</td>
+        <td style="font-size:12px">${compradores}</td>
+        <td style="font-size:12px">${lugares}</td>
+      </tr>`;
+    });
+    afwdHtml+='</tbody></table>';
+  }
+  set('afijar-detail', afwdHtml);
+
+  // ── TABLA DETALLE POR GRANO ──
+  let gt=`<table><thead><tr>
+    <th>Grano</th><th>Stock en acopio</th><th>FWD pendiente</th><th>FWD entregado</th>
+    <th>Disponible</th><th>Canje</th><th>A fijar</th><th>Presupuesto</th><th>Sin vender</th>
+  </tr></thead><tbody>`;
+  GRAINS.forEach(g=>{
+    const bud=pmap[g]?.tons_presupuestadas||0;
+    const st=stockByGrain[g]||0;
+    const fp=fwdPend[g]||0;
+    const fe=fwdEnt[g]||0;
+    const di=disMap[g]||0;
+    const ca=canMap[g]||0;
+    const af=afMap[g]||0;
+    const tot=fp+fe+di+ca+af;
+    const rest=Math.max(0,bud-tot);
+    gt+=`<tr>
+      <td><strong>${g}</strong></td>
+      <td style="color:#2e7d32;font-weight:700">${st>0?fmt(st)+' tn':'—'}</td>
+      <td style="color:#1565c0;font-weight:600">${fp>0?fmt(fp):'—'}</td>
+      <td style="color:#6c757d">${fe>0?fmt(fe):'—'}</td>
+      <td style="color:#2e7d32;font-weight:600">${di>0?fmt(di):'—'}</td>
+      <td style="color:#e65100;font-weight:600">${ca>0?fmt(ca):'—'}</td>
+      <td style="color:#c62828;font-weight:700">${af>0?fmt(af):'—'}</td>
+      <td>${fmt(bud,0)}</td>
+      <td style="color:#6c757d;font-weight:600">${rest>0?fmt(rest,0)+' tn':'✅ Completo'}</td>
+    </tr>`;
+  });
+  gt+='</tbody></table>';
+  set('grain-table', gt);
+
+  // Tabla de precios promedio
+  let pt=`<table><thead><tr>
+    <th>Grano</th>
+    <th>Precio promedio real</th>
+    <th>Precio objetivo</th>
+    <th>Diferencia</th>
+    <th>Tons con precio</th>
+    <th>Valor total</th>
+  </tr></thead><tbody>`;
+  const granosConVentas=GRAINS.filter(g=>vc.some(v=>v.grano===g&&v.tipo!=='A fijar'));
+  if(!granosConVentas.length){
+    pt+='<tr><td colspan="6" style="text-align:center;color:#6c757d;padding:20px">Sin ventas cargadas aún</td></tr>';
+  }
+  granosConVentas.forEach(g=>{
+    const vg=vc.filter(v=>v.grano===g&&v.tipo!=='A fijar');
+    const tg=vg.reduce((s,v)=>s+v.tons,0);
+    const vTotal=vg.reduce((s,v)=>s+v.tons*(v.usd_ton+(v.prima_usd||0)),0);
+    const pp=tg>0?vTotal/tg:0;
+    const po=pmap[g]?.precio_objetivo||0;
+    const dif=po>0?pp-po:null;
+    const dc=dif===null?'#6c757d':dif>=0?'#2e7d32':'#c62828';
+    pt+=`<tr>
+      <td><strong>${g}</strong></td>
+      <td style="font-size:18px;font-weight:800;color:#1b4332">U$S ${fmt(pp,0)}/tn</td>
+      <td style="color:#6c757d">${po>0?'U$S '+fmt(po,0)+'/tn':'—'}</td>
+      <td style="font-weight:700;color:${dc};font-size:15px">${dif!==null?(dif>=0?'▲ +':'▼ ')+fmt(Math.abs(dif),0):'—'}</td>
+      <td>${fmt(tg)} tn</td>
+      <td style="font-weight:600">${fmtM(vTotal)}</td>
+    </tr>`;
+  });
+  pt+='</tbody></table>';
+  set('precio-table', pt);
+
+  // Barras de progreso
+  let ph='';
+  GRAINS.forEach(g=>{
+    const sold=totByGrain[g]||0;
+    const budget=pmap[g]?.tons_presupuestadas||0;
+    const pct=budget>0?Math.min(100,sold/budget*100):(sold>0?100:0);
+    const cls=pct<50?'pf-green':pct<85?'pf-orange':'pf-red';
+    const precObj=pmap[g]?.precio_objetivo;
+    const vg=vc.filter(v=>v.grano===g&&v.tipo!=='A fijar');
+    const tg=vg.reduce((s,v)=>s+v.tons,0);
+    const precReal=tg>0?vg.reduce((s,v)=>s+v.tons*v.usd_ton,0)/tg:0;
+    const precInfo=precObj?` · U$S${fmt(precReal,0)}/${fmt(precObj,0)}`:''
+    ph+=`<div class="grain-row">
+      <div class="grain-header">
+        <span class="grain-name">${g}</span>
+        <span class="grain-stats">${fmt(sold)} / ${fmt(budget)} tn · ${pct.toFixed(0)}%${precInfo}</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill ${cls}" style="width:${pct}%"></div></div>
+    </div>`;
+  });
+  set('grain-prog', ph||'Sin presupuesto. Andá a la pestaña Presupuesto.');
+
+  // Gráfico
+  if(mainChart) mainChart.destroy();
+  const ctx=document.getElementById('chart-main').getContext('2d');
+  mainChart=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:GRAINS,
+      datasets:[
+        {label:'FWD pendiente',data:GRAINS.map(g=>+fwdPend[g].toFixed(2)),backgroundColor:'rgba(72,149,239,.85)',borderRadius:3},
+        {label:'FWD entregado',data:GRAINS.map(g=>+fwdEnt[g].toFixed(2)),backgroundColor:'rgba(72,149,239,.35)',borderRadius:3},
+        {label:'Disponible',data:GRAINS.map(g=>+disMap[g].toFixed(2)),backgroundColor:'rgba(82,183,136,.85)',borderRadius:3},
+        {label:'Canje',data:GRAINS.map(g=>+canMap[g].toFixed(2)),backgroundColor:'rgba(244,162,97,.85)',borderRadius:3},
+        {label:'A fijar',data:GRAINS.map(g=>+afMap[g].toFixed(2)),backgroundColor:'rgba(230,57,70,.7)',borderRadius:3},
+        {label:'Presupuesto',data:GRAINS.map(g=>+(pmap[g]?.tons_presupuestadas||0).toFixed(2)),backgroundColor:'rgba(27,67,50,.12)',borderRadius:3},
+      ]
+    },
+    options:{responsive:true,plugins:{legend:{position:'top'}},scales:{x:{stacked:true},y:{stacked:false,beginAtZero:true,title:{display:true,text:'Toneladas'}}}}
+  });
+
+  // Últimas ventas
+  const recent=(ventas||[]).slice(0,10);
+  let rt=`<table><thead><tr><th>Fecha</th><th>Grano</th><th>Tipo</th><th>Tons</th><th>U$S/tn</th><th>Comprador</th><th>Lugar/Comentario</th><th>Entregado</th></tr></thead><tbody>`;
+  if(!recent.length) rt+='<tr><td colspan="8" style="text-align:center;color:#6c757d;padding:20px">Sin ventas aún</td></tr>';
+  recent.forEach(v=>{
+    const esAf=v.tipo==='A fijar';
+    rt+=`<tr>
+      <td>${fmtD(v.fecha)}</td><td><strong>${v.grano}</strong></td><td>${badge(v.tipo)}</td>
+      <td>${fmt(v.tons)}</td>
+      <td>${esAf?'<span style="color:#c62828">A fijar</span>':'U$S '+fmt(v.usd_ton,0)}</td>
+      <td>${v.comprador||'—'}</td>
+      <td style="font-size:12px;color:#6c757d">${v.ent_lugar||v.comentario||'—'}</td>
+      <td>${v.tipo==='Forward'?`<input type="checkbox" ${v.entregado?'checked':''} onchange="marcarEntregado(${v.id},this.checked)" title="Marcar como entregado">`:'—'}</td>
+    </tr>`;
+  });
+  rt+='</tbody></table>';
+  set('dash-recent',rt);
+}
+
+function buildStockCard(stockData, ventas){
+  if(!stockData.length) return '<p style="color:#6c757d;font-size:13px">Sin stock cargado. Andá a la pestaña <strong>🏭 Inventario</strong> para cargar el grano que tenés en acopio.</p>';
+  
+  // Group by grano+acopio
+  const grupos={};
+  stockData.forEach(s=>{
+    const key=s.grano+'||'+s.acopio;
+    if(!grupos[key]) grupos[key]={grano:s.grano,acopio:s.acopio,tons:0};
+    grupos[key].tons+=s.tons;
+  });
+  
+  let html='<table><thead><tr><th>Grano</th><th>Acopio</th><th>Tons disponibles</th></tr></thead><tbody>';
+  Object.values(grupos).sort((a,b)=>a.grano.localeCompare(b.grano)).forEach(g=>{
+    html+=`<tr><td><strong>${g.grano}</strong></td><td>${g.acopio}</td><td><span style="font-weight:700;color:#2e7d32">${fmt(g.tons)} tn</span></td></tr>`;
+  });
+  html+='</tbody></table>';
+  return html;
+}
+
+async function marcarEntregado(id, val){
+  await sb.from('ventas').update({entregado:val}).eq('id',id);
+}
+// ════════════════════════════════════════════════════════
+// NUEVA VENTA
+// ════════════════════════════════════════════════════════
+async function submitVenta(e){
+  e.preventDefault();
+  set('venta-alert','');
+  const row={
+    fecha:v('v-fecha'), campana:v('v-campaña'), grano:v('v-grano'), tipo:v('v-tipo'),
+    tons:num('v-tons'), usd_ton:num('v-usd'), prima_usd:numOpt('v-prima'),
+    comprador:v('v-comprador')||null, comision:numOpt('v-com'),
+    ent_lugar:v('v-lugar')||null, ent_fecha:v('v-efecha')||null,
+    ent_monto:numOpt('v-emonto'), comentario:v('v-com2')||null,
+  };
+  const {error}=await sb.from('ventas').insert([row]);
+  if(error){return setMsg('venta-alert','Error al guardar: '+error.message,'err');}
+  setMsg('venta-alert',`✅ Guardado — ${fmt(row.tons)} tn de ${row.grano} a U$S ${fmt(row.usd_ton,0)}/tn (${row.tipo})`, 'ok');
+  resetVenta();
+  setTimeout(()=>set('venta-alert',''),6000);
+}
+function resetVenta(){
+  ['v-tons','v-usd','v-prima','v-com','v-lugar','v-emonto','v-com2'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('v-efecha').value='';
+  document.getElementById('v-grano').value='';
+  document.getElementById('v-tipo').value='';
+  document.getElementById('v-comprador').value='';
+  document.getElementById('v-fecha').value=today();
+}
+
+// ════════════════════════════════════════════════════════
+// HISTORIAL
+// ════════════════════════════════════════════════════════
+async function loadHist(){
+  let q=sb.from('ventas').select('*').order('fecha',{ascending:false});
+  const fc=v('h-c'),fg=v('h-g'),ft=v('h-t'),fb=v('h-b');
+  if(fc) q=q.eq('campana',fc);
+  if(fg) q=q.eq('grano',fg);
+  if(ft) q=q.eq('tipo',ft);
+  if(fb) q=q.ilike('comprador','%'+fb+'%');
+  const {data,error}=await q;
+  if(error){set('hist-table','Error: '+error.message);return;}
+
+  let tot=0,val=0;
+  let t=`<table><thead><tr><th>Fecha</th><th>Campaña</th><th>Grano</th><th>Tipo</th><th>Tons</th><th>U$S/tn</th><th>Prima</th><th>Comprador</th><th>Comisión</th><th>Comentario</th><th>Entregado</th><th></th></tr></thead><tbody>`;
+  if(!data?.length){t+='<tr><td colspan="12" style="text-align:center;color:#6c757d;padding:22px">Sin resultados</td></tr>';}
+  (data||[]).forEach(row=>{
+    tot+=row.tons; val+=row.tons*row.usd_ton+(row.prima_usd||0)*row.tons;
+    t+=`<tr>
+      <td>${fmtD(row.fecha)}</td><td>${row.campana}</td>
+      <td><strong>${row.grano}</strong></td><td>${badge(row.tipo)}</td>
+      <td>${fmt(row.tons)}</td><td>U$S ${fmt(row.usd_ton,0)}</td>
+      <td>${row.prima_usd?'U$S '+fmt(row.prima_usd,0):'—'}</td>
+      <td>${row.comprador||'—'}</td>
+      <td>${row.comision?row.comision+'%':'—'}</td>
+      <td style="font-size:12px;color:#6c757d;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${row.comentario||''}</td>
+      <td style="text-align:center">${row.tipo==='Forward'?`<input type="checkbox" ${row.entregado?'checked':''} onchange="marcarEntregado(${row.id},this.checked)" title="Marcar como entregado" style="width:16px;height:16px;cursor:pointer">`:'—'}</td>
+      <td class="row-actions">
+        <button class="btn btn-muted btn-danger" style="background:#e8f4fd;color:#1565c0;border:1px solid #bbdefb" onclick="openEdit(${JSON.stringify(row).replace(/"/g,'&quot;')})">✏️</button>
+        <button class="btn btn-danger" onclick="delVenta(${row.id})">🗑</button>
+      </td>
+    </tr>`;
+  });
+  t+='</tbody></table>';
+  set('hist-table',t);
+  set('hist-totals', data?.length
+    ? `${data.length} ventas · ${fmt(tot)} tn · U$S ${fmtM(val)} · Precio prom: U$S ${fmt(tot?val/tot:0,0)}/tn`
+    : '');
+}
+async function delVenta(id){
+  if(!confirm('¿Eliminás esta venta?')) return;
+  await sb.from('ventas').delete().eq('id',id);
+  loadHist();
+}
+
+// ════════════════════════════════════════════════════════
+// PRESUPUESTO
+// ════════════════════════════════════════════════════════
+async function loadPres(){
+  const c=document.getElementById('p-c').value;
+  const [{data:pres},{data:ventas}]=await Promise.all([
+    sb.from('presupuesto').select('*').eq('campana',c).order('grano'),
+    sb.from('ventas').select('grano,tons,usd_ton').eq('campana',c)
+  ]);
+  const vmap={};
+  (ventas||[]).forEach(v=>{
+    if(!vmap[v.grano]) vmap[v.grano]={t:0,val:0};
+    vmap[v.grano].t+=v.tons; vmap[v.grano].val+=v.tons*v.usd_ton;
+  });
+  let t=`<table><thead><tr><th>Grano</th><th>Tons Presupuestadas</th><th>Tons Vendidas</th><th>% Ejecutado</th><th>Precio Objetivo</th><th>Precio Real</th><th></th></tr></thead><tbody>`;
+  if(!pres?.length){t+='<tr><td colspan="7" style="text-align:center;color:#6c757d;padding:22px">Sin presupuesto para esta campaña. Usá "+ Agregar grano" o importá desde Config.</td></tr>';}
+  (pres||[]).forEach(p=>{
+    const vm=vmap[p.grano]||{t:0,val:0};
+    const pct=p.tons_presupuestadas>0?(vm.t/p.tons_presupuestadas*100):0;
+    const colPct=pct<50?'#2e7d32':pct<85?'#e65100':'#c62828';
+    const precReal=vm.t>0?vm.val/vm.t:null;
+    t+=`<tr>
+      <td><strong>${p.grano}</strong></td>
+      <td><input class="pres-input" type="number" value="${p.tons_presupuestadas}" onchange="updPres(${p.id},'tons_presupuestadas',this.value)"></td>
+      <td>${fmt(vm.t)}</td>
+      <td><span style="color:${colPct};font-weight:700">${pct.toFixed(1)}%</span></td>
+      <td><input class="pres-input" type="number" value="${p.precio_objetivo||''}" placeholder="—" onchange="updPres(${p.id},'precio_objetivo',this.value)"></td>
+      <td>${precReal?'U$S '+fmt(precReal,0):'—'}</td>
+      <td><button class="btn btn-danger" onclick="delPres(${p.id})">🗑</button></td>
+    </tr>`;
+  });
+  t+='</tbody></table>';
+  set('pres-table',t);
+}
+async function updPres(id,field,val){
+  await sb.from('presupuesto').update({[field]:parseFloat(val)}).eq('id',id);
+}
+async function delPres(id){
+  if(!confirm('¿Eliminás esta fila?')) return;
+  await sb.from('presupuesto').delete().eq('id',id);
+  loadPres();
+}
+function showAddPres(){ document.getElementById('add-pres').style.display='block'; }
+async function savePres(){
+  const c=document.getElementById('p-c').value;
+  const g=v('np-g'),t=num('np-t'),p=numOpt('np-p');
+  if(!g||isNaN(t)){alert('Completá grano y toneladas');return;}
+  const {error}=await sb.from('presupuesto').upsert([{campana:c,grano:g,tons_presupuestadas:t,precio_objetivo:p}],{onConflict:'campana,grano'});
+  if(error){alert('Error: '+error.message);return;}
+  document.getElementById('add-pres').style.display='none';
+  document.getElementById('np-t').value='';
+  document.getElementById('np-p').value='';
+  loadPres();
+}
+
+// ════════════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════════════
+async function saveConf(){
+  const url=v('c-url').trim(), key=v('c-key').trim();
+  if(!url||!key){return setMsg('conf-msg','Completá ambos campos.','err');}
+  localStorage.setItem('sb_url',url); localStorage.setItem('sb_key',key);
+  initSb(url,key);
+  setMsg('conf-msg','✅ Guardado. Recargá si la conexión no anda.','ok');
+}
+async function importVentas(){
+  const el=document.getElementById('imp-msg');
+  el.textContent='Importando ventas...';
+  const {error}=await sb.from('ventas').insert(VENTAS_HIST);
+  if(error){el.innerHTML='<span style="color:#7f1d1d">Error: '+error.message+'</span>';return;}
+  el.innerHTML='<span style="color:#065f46">✅ '+VENTAS_HIST.length+' ventas importadas correctamente.</span>';
+}
+async function importPres(){
+  const el=document.getElementById('imp-msg');
+  el.textContent='Importando presupuesto...';
+  const {error}=await sb.from('presupuesto').upsert(PRES_HIST,{onConflict:'campana,grano'});
+  if(error){el.innerHTML='<span style="color:#7f1d1d">Error: '+error.message+'</span>';return;}
+  el.innerHTML='<span style="color:#065f46">✅ Presupuesto 25/26 importado ('+PRES_HIST.length+' granos).</span>';
+}
+function copySql(){ navigator.clipboard.writeText(SQL).then(()=>alert('SQL copiado ✅')); }
+
+// ════════════════════════════════════════════════════════
+// INVENTARIO / STOCK
+// ════════════════════════════════════════════════════════
+async function loadStock(){
+  const c=document.getElementById('st-c').value;
+  const [{data:stockData},{data:ventas}]=await Promise.all([
+    sb.from('stock').select('*').eq('campana',c).order('grano'),
+    sb.from('ventas').select('grano,tons,tipo').eq('campana',c)
+  ]);
+
+  // Total vendido por grano
+  const vendMap={}; GRAINS.forEach(g=>vendMap[g]=0);
+  (ventas||[]).forEach(v=>{if(vendMap[v.grano]!==undefined)vendMap[v.grano]+=v.tons;});
+
+  let t=`<table><thead><tr><th>Grano</th><th>Acopio / Lugar</th><th>Tons ingresadas</th><th>Fecha ingreso</th><th>Comentario</th><th></th></tr></thead><tbody>`;
+  if(!stockData?.length) t+='<tr><td colspan="6" style="text-align:center;color:#6c757d;padding:22px">Sin stock cargado para esta campaña</td></tr>';
+  (stockData||[]).forEach(s=>{
+    t+=`<tr>
+      <td><strong>${s.grano}</strong></td>
+      <td>${s.acopio}</td>
+      <td><span style="font-weight:700;color:#2e7d32">${fmt(s.tons)} tn</span></td>
+      <td>${fmtD(s.fecha_ing)}</td>
+      <td style="font-size:12px;color:#6c757d">${s.comentario||''}</td>
+      <td><button class="btn btn-danger" onclick="delStock(${s.id})">🗑</button></td>
+    </tr>`;
+  });
+  t+='</tbody></table>';
+  set('stock-table', t);
+
+  // Resumen por grano
+  const resMap={};
+  (stockData||[]).forEach(s=>{
+    if(!resMap[s.grano]) resMap[s.grano]=0;
+    resMap[s.grano]+=s.tons;
+  });
+  let r=`<table><thead><tr><th>Grano</th><th>Total en Acopio</th><th>Total Vendido</th><th>Diferencia</th></tr></thead><tbody>`;
+  const granosConData=GRAINS.filter(g=>(resMap[g]||0)>0||(vendMap[g]||0)>0);
+  if(!granosConData.length) r+='<tr><td colspan="4" style="text-align:center;color:#6c757d;padding:16px">Sin datos</td></tr>';
+  granosConData.forEach(g=>{
+    const st=resMap[g]||0;
+    const vd=vendMap[g]||0;
+    const diff=st-vd;
+    r+=`<tr>
+      <td><strong>${g}</strong></td>
+      <td style="color:#2e7d32;font-weight:700">${fmt(st)} tn</td>
+      <td style="color:#1565c0;font-weight:600">${fmt(vd)} tn</td>
+      <td style="font-weight:700;color:${diff>=0?'#2e7d32':'#c62828'}">${diff>=0?'+':''}${fmt(diff)} tn</td>
+    </tr>`;
+  });
+  r+='</tbody></table>';
+  set('stock-resumen', r);
+}
+
+function showAddStock(){ 
+  document.getElementById('add-stock').style.display='block';
+  document.getElementById('sk-fecha').value=today();
+}
+
+async function saveStock(){
+  const c=document.getElementById('st-c').value;
+  const g=v('sk-g'), lugar=v('sk-lugar').trim();
+  const tons=num('sk-tons'), fecha=v('sk-fecha');
+  if(!lugar){setMsg('stock-msg','Ingresá el nombre del acopio.','err');return;}
+  if(isNaN(tons)||tons<=0){setMsg('stock-msg','Ingresá toneladas válidas.','err');return;}
+  const {error}=await sb.from('stock').insert([{campana:c,grano:g,acopio:lugar,tons,fecha_ing:fecha||null,comentario:v('sk-com')||null}]);
+  if(error){setMsg('stock-msg','Error: '+error.message,'err');return;}
+  document.getElementById('add-stock').style.display='none';
+  document.getElementById('sk-tons').value='';
+  document.getElementById('sk-lugar').value='';
+  document.getElementById('sk-com').value='';
+  loadStock();
+}
+
+async function delStock(id){
+  if(!confirm('¿Eliminás este registro de stock?')) return;
+  await sb.from('stock').delete().eq('id',id);
+  loadStock();
+}
+
+// ════════════════════════════════════════════════════════
+// EDITAR VENTA
+// ════════════════════════════════════════════════════════
+function openEdit(row){
+  document.getElementById('edit-id').value=row.id;
+  document.getElementById('edit-fecha').value=row.fecha||'';
+  document.getElementById('edit-campaña').value=row.campana||'25/26';
+  document.getElementById('edit-grano').value=row.grano||'';
+  document.getElementById('edit-tipo').value=row.tipo||'';
+  document.getElementById('edit-tons').value=row.tons||'';
+  document.getElementById('edit-usd').value=row.usd_ton||'';
+  document.getElementById('edit-prima').value=row.prima_usd||'';
+  document.getElementById('edit-comprador').value=row.comprador||'';
+  document.getElementById('edit-com').value=row.comision||'';
+  document.getElementById('edit-lugar').value=row.ent_lugar||'';
+  document.getElementById('edit-efecha').value=row.ent_fecha||'';
+  document.getElementById('edit-emonto').value=row.ent_monto||'';
+  document.getElementById('edit-com2').value=row.comentario||'';
+  set('edit-alert','');
+  const overlay=document.getElementById('modal-overlay');
+  overlay.style.display='flex';
+}
+
+function closeModal(){
+  document.getElementById('modal-overlay').style.display='none';
+}
+
+async function saveEdit(){
+  const id=document.getElementById('edit-id').value;
+  const row={
+    fecha:v('edit-fecha'), campana:v('edit-campaña'), grano:v('edit-grano'), tipo:v('edit-tipo'),
+    tons:num('edit-tons'), usd_ton:num('edit-usd'), prima_usd:numOpt('edit-prima'),
+    comprador:v('edit-comprador')||null, comision:numOpt('edit-com'),
+    ent_lugar:v('edit-lugar')||null, ent_fecha:v('edit-efecha')||null,
+    ent_monto:numOpt('edit-emonto'), comentario:v('edit-com2')||null,
+  };
+  const {error}=await sb.from('ventas').update(row).eq('id',id);
+  if(error){return setMsg('edit-alert','Error: '+error.message,'err');}
+  closeModal();
+  loadHist();
+}
+
+// Cerrar modal clickeando fuera
+document.addEventListener('click', e=>{
+  const overlay=document.getElementById('modal-overlay');
+  if(e.target===overlay) closeModal();
+});
+
+// ════════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════════
+function v(id){ return document.getElementById(id).value; }
+function set(id,html){ document.getElementById(id).innerHTML=html; }
+function num(id){ return parseFloat(document.getElementById(id).value); }
+function numOpt(id){ const val=document.getElementById(id).value; return val?parseFloat(val):null; }
+function today(){ return new Date().toISOString().split('T')[0]; }
+function fmt(n,dec=3){
+  if(n===null||n===undefined||isNaN(n)) return '—';
+  return Number(n).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:dec});
+}
+function fmtM(n){
+  if(!n||isNaN(n)) return '—';
+  if(n>=1e6) return 'U$S '+(n/1e6).toFixed(2)+'M';
+  if(n>=1000) return 'U$S '+(n/1000).toFixed(1)+'K';
+  return 'U$S '+fmt(n,0);
+}
+function fmtD(d){ return d?d.split('-').reverse().join('/'):'—'; }
+function setMsg(id,msg,type){ document.getElementById(id).innerHTML=`<div class="alert alert-${type==='ok'?'ok':'err'}">${msg}</div>`; }
+function badge(tipo){
+  const map={forward:'badge-forward',disponible:'badge-disponible',canje:'badge-canje'};
+  const cls=map[(tipo||'').toLowerCase()]||'badge-other';
+  return `<span class="badge ${cls}">${tipo}</span>`;
+}
+</script>
+</body>
+</html>
