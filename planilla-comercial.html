@@ -702,20 +702,14 @@ async function doSetup(){
 // ════════════════════════════════════════════════════════
 window.onload=async function(){
   document.getElementById('sql-box').textContent=SQL;
-  const url=localStorage.getItem('sb_url'), key=localStorage.getItem('sb_key');
-  if(!url||!key){
-    document.getElementById('setup').style.display='flex';
-    return;
-  }
+  // Credenciales hardcodeadas — no requiere configuración
+  const url='https://ezgrydyngvvfzzdeelje.supabase.co';
+  const key='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6Z3J5ZHluZ3Z2Znp6ZGVlbGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2NTM2OTYsImV4cCI6MjEwMDIyOTY5Nn0.QNZ6YSAwYlxLpXEY_IGvhS9L4551W0Wlo5GFfh_ZNBA';
+  localStorage.setItem('sb_url',url);
+  localStorage.setItem('sb_key',key);
   initSb(url,key);
-  // Check if already logged in
   const {data:{session}}=await sb.auth.getSession();
-  if(session){
-    showApp(session.user);
-  } else {
-    showLogin();
-  }
-  // Listen for auth changes
+  if(session){ showApp(session.user); } else { showLogin(); }
   sb.auth.onAuthStateChange((_,session)=>{
     if(session) showApp(session.user);
     else showLogin();
