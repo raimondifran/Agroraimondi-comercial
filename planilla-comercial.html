@@ -179,6 +179,15 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
     </div>
     <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px" onclick="doLogin()">Ingresar →</button>
     <div id="login-msg" style="margin-top:12px"></div>
+    <div style="text-align:center;margin-top:14px">
+      <a href="#" onclick="toggleRecuperar(event)" style="font-size:13px;color:#1b4332;text-decoration:underline">¿Olvidaste tu contraseña?</a>
+    </div>
+    <div id="recuperar-form" style="display:none;margin-top:14px;border-top:1px solid #e9ecef;padding-top:14px">
+      <label style="font-size:12px;font-weight:600;color:#495057;letter-spacing:.05em">TU EMAIL</label>
+      <input type="email" id="rec-email" placeholder="nombre@email.com" style="margin-top:4px">
+      <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="enviarRecuperar()">Enviar link de recuperación</button>
+      <div id="rec-msg" style="margin-top:8px"></div>
+    </div>
   </div>
 </div>
 
@@ -286,7 +295,7 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
             <select id="v-grano" required>
               <option value="">— Seleccionar —</option>
               <option>Trigo</option><option>Cebada F</option><option>Cebada C</option>
-              <option>Girasol</option><option>Maíz</option><option>Soja</option>
+              <option>Girasol</option><option>Girasol AO</option><option>Colza</option><option>Maíz</option><option>Soja</option>
             </select>
           </div>
           <div class="form-group">
@@ -372,7 +381,7 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
             <label>Grano</label>
             <select id="sk-g">
               <option>Trigo</option><option>Cebada F</option><option>Cebada C</option>
-              <option>Girasol</option><option>Maíz</option><option>Soja</option>
+              <option>Girasol</option><option>Girasol AO</option><option>Colza</option><option>Maíz</option><option>Soja</option>
             </select>
           </div>
           <div class="form-group">
@@ -418,7 +427,7 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
         <select id="h-g" onchange="loadHist()">
           <option value="">Todos los granos</option>
           <option>Trigo</option><option>Cebada F</option><option>Cebada C</option>
-          <option>Girasol</option><option>Maíz</option><option>Soja</option>
+          <option>Girasol</option><option>Girasol AO</option><option>Colza</option><option>Maíz</option><option>Soja</option>
         </select>
         <select id="h-t" onchange="loadHist()">
           <option value="">Todos los tipos</option>
@@ -452,7 +461,7 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
             <label>Grano</label>
             <select id="np-g">
               <option>Trigo</option><option>Cebada F</option><option>Cebada C</option>
-              <option>Girasol</option><option>Maíz</option><option>Soja</option>
+              <option>Girasol</option><option>Girasol AO</option><option>Colza</option><option>Maíz</option><option>Soja</option>
             </select>
           </div>
           <div class="form-group">
@@ -574,7 +583,7 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
       <div class="form-group"><label>Grano *</label>
         <select id="edit-grano">
           <option>Trigo</option><option>Cebada F</option><option>Cebada C</option>
-          <option>Girasol</option><option>Maíz</option><option>Soja</option>
+          <option>Girasol</option><option>Girasol AO</option><option>Colza</option><option>Maíz</option><option>Soja</option>
         </select>
       </div>
       <div class="form-group"><label>Tipo *</label>
@@ -698,7 +707,7 @@ const PRES_HIST = [
   {campana:'25/26',grano:'Soja',tons_presupuestadas:1052,precio_objetivo:330},
 ];
 
-const GRAINS = ['Trigo','Cebada F','Cebada C','Girasol','Maíz','Soja'];
+const GRAINS = ['Trigo','Cebada F','Cebada C','Girasol','Girasol AO','Colza','Maíz','Soja'];
 
 // ════════════════════════════════════════════════════════
 // SUPABASE
@@ -733,9 +742,15 @@ window.onload=async function(){
   initSb(url,key);
   const {data:{session}}=await sb.auth.getSession();
   if(session){ showApp(session.user); } else { showLogin(); }
-  sb.auth.onAuthStateChange((_,session)=>{
-    if(session) showApp(session.user);
-    else showLogin();
+  sb.auth.onAuthStateChange((event,session)=>{
+    if(event==='PASSWORD_RECOVERY'){
+      document.getElementById('login').style.display='none';
+      document.getElementById('reset-pass').style.display='flex';
+    } else if(session){
+      showApp(session.user);
+    } else {
+      showLogin();
+    }
   });
 };
 
@@ -774,6 +789,32 @@ async function startApp(){
 // ════════════════════════════════════════════════════════
 // AUTH
 // ════════════════════════════════════════════════════════
+function toggleRecuperar(e){
+  e.preventDefault();
+  const f=document.getElementById('recuperar-form');
+  f.style.display=f.style.display==='none'?'block':'none';
+}
+
+async function enviarRecuperar(){
+  const email=document.getElementById('rec-email').value.trim();
+  if(!email){setMsg('rec-msg','Ingresá tu email.','err');return;}
+  const redirectTo=window.location.href.split('#')[0];
+  const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo});
+  if(error){setMsg('rec-msg','Error: '+error.message,'err');return;}
+  setMsg('rec-msg','✅ Revisá tu email — te mandamos el link.','ok');
+}
+
+async function guardarNuevaPass(){
+  const p1=document.getElementById('new-pass').value;
+  const p2=document.getElementById('new-pass2').value;
+  if(p1.length<6){setMsg('reset-msg','Mínimo 6 caracteres.','err');return;}
+  if(p1!==p2){setMsg('reset-msg','Las contraseñas no coinciden.','err');return;}
+  const {error}=await sb.auth.updateUser({password:p1});
+  if(error){setMsg('reset-msg','Error: '+error.message,'err');return;}
+  setMsg('reset-msg','✅ Contraseña actualizada. Redirigiendo...','ok');
+  setTimeout(()=>{ document.getElementById('reset-pass').style.display='none'; nav('dash'); },1500);
+}
+
 async function doLogin(){
   const email=v('l-email').trim(), pass=v('l-pass');
   if(!email||!pass){return setMsg('login-msg','Completá email y contraseña.','err');}
