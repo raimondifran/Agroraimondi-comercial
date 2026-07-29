@@ -202,6 +202,7 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
   <div class="nav-tab" id="tab-pres" onclick="nav('pres')">🎯 Presupuesto</div>
   <div class="nav-spacer"></div>
   <div style="padding:0 12px;display:flex;align-items:center;gap:10px">
+    <select id="nav-empresa" onchange="onEmpresaChange()" style="display:none;padding:4px 8px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:6px;color:#fff;font-size:12px;cursor:pointer"></select>
     <span id="nav-user" style="font-size:12px;color:#95d5b2;opacity:.8"></span>
     <button onclick="doLogout()" style="padding:6px 12px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;font-size:12px;cursor:pointer">Salir</button>
   </div>
@@ -513,13 +514,25 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
     <div class="card" style="max-width:500px">
       <h3>Gestión de Usuarios</h3>
       <p style="font-size:13px;color:#6c757d;margin-bottom:14px">Para agregar o eliminar usuarios, ingresá al panel de Supabase → <strong>Authentication → Users</strong> → "Invite user". El usuario recibirá un email para crear su contraseña.</p>
-      <div class="form-group" style="margin-bottom:13px">
-        <label>Crear nuevo usuario (desde acá)</label>
+      <div class="form-group" style="margin-bottom:11px">
+        <label>Email</label>
         <input type="email" id="new-user-email" placeholder="nuevo@email.com">
       </div>
-      <div class="form-group" style="margin-bottom:14px">
+      <div class="form-group" style="margin-bottom:11px">
         <label>Contraseña inicial</label>
         <input type="password" id="new-user-pass" placeholder="Mínimo 6 caracteres">
+      </div>
+      <div class="form-group" style="margin-bottom:11px">
+        <label>Empresa / Cliente</label>
+        <input type="text" id="new-user-empresa" placeholder="Ej: Estancia Los Álamos">
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label>Rol</label>
+        <select id="new-user-rol">
+          <option value="cliente">Cliente (ve solo sus datos)</option>
+          <option value="staff">Staff (ve todos los datos)</option>
+          <option value="admin">Admin (gestión completa)</option>
+        </select>
       </div>
       <button class="btn btn-primary btn-sm" onclick="createUser()">Crear usuario</button>
       <div id="user-msg" style="margin-top:11px;font-size:13px"></div>
@@ -623,58 +636,81 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
 // DATA CONSTANTS
 // ════════════════════════════════════════════════════════
 const SQL = `-- ▶ Ejecutar en SQL Editor de Supabase (una sola vez)
+-- Si ya tenías tablas, ejecutá igual — los ALTER son seguros
 
 CREATE TABLE IF NOT EXISTS ventas (
-  id          bigserial PRIMARY KEY,
-  created_at  timestamptz DEFAULT now(),
-  fecha       date        NOT NULL,
-  campana     text        NOT NULL,
-  grano       text        NOT NULL,
-  tipo        text        NOT NULL,
-  tons        float       NOT NULL,
-  usd_ton     float       NOT NULL,
-  prima_usd   float,
-  comprador   text,
-  comision    float,
-  ent_lugar   text,
-  ent_fecha   date,
-  ent_monto   float,
-  comentario  text
+  id bigserial PRIMARY KEY, created_at timestamptz DEFAULT now(),
+  fecha date NOT NULL, campana text NOT NULL, grano text NOT NULL,
+  tipo text NOT NULL, tons float NOT NULL, usd_ton float NOT NULL,
+  prima_usd float, comprador text, comision float,
+  ent_lugar text, ent_fecha date, ent_monto float, comentario text
 );
-
 CREATE TABLE IF NOT EXISTS presupuesto (
-  id                  bigserial PRIMARY KEY,
-  campana             text  NOT NULL,
-  grano               text  NOT NULL,
-  tons_presupuestadas float NOT NULL,
-  precio_objetivo     float,
-  UNIQUE (campana, grano)
+  id bigserial PRIMARY KEY, campana text NOT NULL, grano text NOT NULL,
+  tons_presupuestadas float NOT NULL, precio_objetivo float
 );
-
 CREATE TABLE IF NOT EXISTS stock (
-  id          bigserial PRIMARY KEY,
-  created_at  timestamptz DEFAULT now(),
-  campana     text  NOT NULL,
-  grano       text  NOT NULL,
-  acopio      text  NOT NULL,
-  tons        float NOT NULL,
-  fecha_ing   date,
-  comentario  text
+  id bigserial PRIMARY KEY, created_at timestamptz DEFAULT now(),
+  campana text NOT NULL, grano text NOT NULL, acopio text NOT NULL,
+  tons float NOT NULL, fecha_ing date, comentario text
+);
+CREATE TABLE IF NOT EXISTS user_profiles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  empresa text NOT NULL DEFAULT 'Agrop Raimondi',
+  rol text NOT NULL DEFAULT 'cliente',
+  created_at timestamptz DEFAULT now()
 );
 
--- Agregar columna entregado si no existe (para marcar FWD entregados)
-ALTER TABLE ventas ADD COLUMN IF NOT EXISTS entregado boolean DEFAULT false;
+-- Columnas nuevas (seguro si ya existen)
+ALTER TABLE ventas       ADD COLUMN IF NOT EXISTS entregado boolean DEFAULT false;
+ALTER TABLE ventas       ADD COLUMN IF NOT EXISTS empresa text DEFAULT 'Agrop Raimondi';
+ALTER TABLE presupuesto  ADD COLUMN IF NOT EXISTS empresa text DEFAULT 'Agrop Raimondi';
+ALTER TABLE stock        ADD COLUMN IF NOT EXISTS empresa text DEFAULT 'Agrop Raimondi';
 
-ALTER TABLE ventas      ENABLE ROW LEVEL SECURITY;
+-- Llenar empresa en registros existentes
+UPDATE ventas      SET empresa = 'Agrop Raimondi' WHERE empresa IS NULL;
+UPDATE presupuesto SET empresa = 'Agrop Raimondi' WHERE empresa IS NULL;
+UPDATE stock       SET empresa = 'Agrop Raimondi' WHERE empresa IS NULL;
+
+-- UNIQUE en presupuesto por empresa
+ALTER TABLE presupuesto DROP CONSTRAINT IF EXISTS presupuesto_campana_grano_key;
+ALTER TABLE presupuesto ADD CONSTRAINT IF NOT EXISTS pres_campana_grano_empresa UNIQUE (campana, grano, empresa);
+
+-- RLS
+ALTER TABLE ventas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE presupuesto ENABLE ROW LEVEL SECURITY;
-ALTER TABLE stock       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stock ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS open_ventas ON ventas;
-DROP POLICY IF EXISTS open_pres   ON presupuesto;
-DROP POLICY IF EXISTS open_stock  ON stock;
-CREATE POLICY open_ventas ON ventas      FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY open_pres   ON presupuesto FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY open_stock  ON stock       FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');`;
+DROP POLICY IF EXISTS open_ventas  ON ventas;
+DROP POLICY IF EXISTS open_pres    ON presupuesto;
+DROP POLICY IF EXISTS open_stock   ON stock;
+DROP POLICY IF EXISTS ventas_policy ON ventas;
+DROP POLICY IF EXISTS pres_policy   ON presupuesto;
+DROP POLICY IF EXISTS stock_policy  ON stock;
+DROP POLICY IF EXISTS profiles_policy ON user_profiles;
+
+CREATE POLICY ventas_policy ON ventas FOR ALL
+  USING  (empresa=(SELECT empresa FROM user_profiles WHERE id=auth.uid()) OR (SELECT rol FROM user_profiles WHERE id=auth.uid()) IN ('admin','staff'))
+  WITH CHECK (empresa=(SELECT empresa FROM user_profiles WHERE id=auth.uid()) OR (SELECT rol FROM user_profiles WHERE id=auth.uid()) IN ('admin','staff'));
+CREATE POLICY pres_policy ON presupuesto FOR ALL
+  USING  (empresa=(SELECT empresa FROM user_profiles WHERE id=auth.uid()) OR (SELECT rol FROM user_profiles WHERE id=auth.uid()) IN ('admin','staff'))
+  WITH CHECK (empresa=(SELECT empresa FROM user_profiles WHERE id=auth.uid()) OR (SELECT rol FROM user_profiles WHERE id=auth.uid()) IN ('admin','staff'));
+CREATE POLICY stock_policy ON stock FOR ALL
+  USING  (empresa=(SELECT empresa FROM user_profiles WHERE id=auth.uid()) OR (SELECT rol FROM user_profiles WHERE id=auth.uid()) IN ('admin','staff'))
+  WITH CHECK (empresa=(SELECT empresa FROM user_profiles WHERE id=auth.uid()) OR (SELECT rol FROM user_profiles WHERE id=auth.uid()) IN ('admin','staff'));
+CREATE POLICY profiles_policy ON user_profiles FOR ALL
+  USING  (id=auth.uid() OR (SELECT rol FROM user_profiles WHERE id=auth.uid()) IN ('admin','staff'))
+  WITH CHECK (id=auth.uid() OR (SELECT rol FROM user_profiles WHERE id=auth.uid()) IN ('admin','staff'));
+
+-- Perfiles para usuarios existentes (ajustá los emails si hace falta)
+INSERT INTO user_profiles (id, empresa, rol)
+  SELECT id,'Agrop Raimondi','admin' FROM auth.users WHERE email='raimondifran@gmail.com'
+  ON CONFLICT (id) DO NOTHING;
+INSERT INTO user_profiles (id, empresa, rol)
+  SELECT id,'Agrop Raimondi','staff' FROM auth.users WHERE email='agroraimondi@gmail.com'
+  ON CONFLICT (id) DO NOTHING;
+`;
 
 const VENTAS_HIST = [
   {fecha:'2025-10-07',campana:'25/26',grano:'Cebada C',tipo:'Forward',tons:148.055,usd_ton:208,prima_usd:null,comprador:'ACA',comentario:null},
@@ -732,6 +768,9 @@ async function doSetup(){
 // ════════════════════════════════════════════════════════
 // APP INIT
 // ════════════════════════════════════════════════════════
+let myProfile=null; // {empresa, rol}
+let viewEmpresa=null; // empresa siendo visualizada (admin/staff pueden cambiar)
+
 window.onload=async function(){
   document.getElementById('sql-box').textContent=SQL;
   // Credenciales hardcodeadas — no requiere configuración
@@ -760,7 +799,7 @@ function showLogin(){
   document.getElementById('app').style.display='none';
 }
 
-function showApp(user){
+async function showApp(user){
   document.getElementById('setup').style.display='none';
   document.getElementById('login').style.display='none';
   document.getElementById('app').style.display='block';
@@ -770,13 +809,60 @@ function showApp(user){
   const key=localStorage.getItem('sb_key')||'';
   document.getElementById('c-url').value=url;
   document.getElementById('c-key').value=key;
-  // Mostrar panel admin solo para vos
-  const isAdmin=user?.email==='raimondifran@gmail.com';
-  document.getElementById('admin-section').style.display=isAdmin?'block':'none';
-  // Pre-cargar service key si ya estaba guardada
   const sk=localStorage.getItem('sb_service_key')||'';
   if(sk) document.getElementById('srv-key').value=sk;
+  // Cargar perfil del usuario
+  const {data:prof}=await sb.from('user_profiles').select('*').eq('id',user.id).single();
+  myProfile = prof || {empresa:'Agrop Raimondi', rol: user.email==='raimondifran@gmail.com'?'admin':'cliente'};
+  viewEmpresa = myProfile.empresa;
+  // Panel admin solo para rol admin
+  const isAdmin = myProfile.rol==='admin';
+  document.getElementById('admin-section').style.display=isAdmin?'block':'none';
+  // Selector de empresa para admin/staff
+  await loadEmpresaSelector();
   nav('dash');
+}
+
+async function loadEmpresaSelector(){
+  const sel=document.getElementById('nav-empresa');
+  if(myProfile.rol==='cliente'){ sel.style.display='none'; return; }
+  // Cargar lista de empresas desde user_profiles
+  const {data}=await sb.from('user_profiles').select('empresa');
+  const empresas=[...new Set((data||[]).map(p=>p.empresa))].sort();
+  sel.innerHTML='<option value="">🌐 Todas las empresas</option>'+empresas.map(e=>`<option value="${e}"${e===myProfile.empresa?'':''}>🏢 ${e}</option>`).join('');
+  sel.value=''; // ver todas por defecto para admin/staff
+  viewEmpresa=null;
+  sel.style.display='inline-block';
+}
+
+function onEmpresaChange(){
+  viewEmpresa=document.getElementById('nav-empresa').value||null;
+  // Recargar la vista actual
+  const active=document.querySelector('.view.active');
+  if(active){
+    const id=active.id.replace('view-','');
+    if(id==='dash') loadDash();
+    else if(id==='hist') loadHist();
+    else if(id==='pres') loadPres();
+    else if(id==='inv') loadInv();
+  }
+}
+
+function getEmpresa(){
+  // Para clientes: su empresa. Para admin/staff: la seleccionada (o null=todas)
+  if(!myProfile||myProfile.rol==='admin'||myProfile.rol==='staff') return viewEmpresa;
+  return myProfile.empresa;
+}
+
+function addEmpresaFilter(query){
+  const emp=getEmpresa();
+  return emp ? query.eq('empresa',emp) : query;
+}
+
+function getEmpresaForInsert(){
+  // Al insertar: cliente usa su empresa, admin/staff usa la seleccionada o su propia empresa
+  if(myProfile.rol==='cliente') return myProfile.empresa;
+  return viewEmpresa || myProfile.empresa;
 }
 
 async function startApp(){
@@ -831,18 +917,21 @@ async function doLogout(){
 
 async function createUser(){
   const email=v('new-user-email').trim(), pass=v('new-user-pass');
+  const empresa=v('new-user-empresa').trim(), rol=v('new-user-rol')||'cliente';
   if(!email||!pass){setMsg('user-msg','Completá email y contraseña.','err');return;}
+  if(!empresa){setMsg('user-msg','Completá el nombre de empresa.','err');return;}
   if(pass.length<6){setMsg('user-msg','La contraseña debe tener al menos 6 caracteres.','err');return;}
-  const {error}=await sb.auth.admin?.createUser({email,password:pass,email_confirm:true})
-    .catch(()=>({error:{message:'No autorizado. Creá el usuario desde Supabase → Authentication → Users.'}}));
-  if(error){
-    // Fallback: try signUp (works if email confirmations are disabled)
-    const {error:e2}=await sb.auth.signUp({email,password:pass,options:{data:{created_by:'admin'}}});
-    if(e2){return setMsg('user-msg','Error: '+e2.message+'. Creá el usuario desde Supabase → Authentication → Users.','err');}
-  }
-  setMsg('user-msg','✅ Usuario creado: '+email,'ok');
+  // Crear en Supabase Auth (requiere adminSb con service role key)
+  if(!adminSb){setMsg('user-msg','Cargá la Service Role Key en el Panel de Administración para crear usuarios.','err');return;}
+  const {data:newUser,error}=await adminSb.auth.admin.createUser({email,password:pass,email_confirm:true});
+  if(error){return setMsg('user-msg','Error: '+error.message,'err');}
+  // Crear perfil en user_profiles
+  const {error:pe}=await adminSb.from('user_profiles').insert([{id:newUser.user.id,empresa,rol}]);
+  if(pe){return setMsg('user-msg','Usuario creado pero error en perfil: '+pe.message,'err');}
+  setMsg('user-msg','✅ Usuario creado: '+email+' ('+empresa+' / '+rol+')','ok');
   document.getElementById('new-user-email').value='';
   document.getElementById('new-user-pass').value='';
+  document.getElementById('new-user-empresa').value='';
 }
 
 // ════════════════════════════════════════════════════════
@@ -867,10 +956,11 @@ function nav(id){
 async function loadDash(){
   const campana=document.getElementById('dash-campaña').value;
 
+  const emp=getEmpresa();
   const [{data:ventas},{data:pres},{data:stockData}]=await Promise.all([
-    sb.from('ventas').select('*').order('fecha',{ascending:false}),
-    sb.from('presupuesto').select('*').eq('campana',campana),
-    sb.from('stock').select('*').eq('campana',campana)
+    addEmpresaFilter(sb.from('ventas').select('*')).order('fecha',{ascending:false}),
+    addEmpresaFilter(sb.from('presupuesto').select('*').eq('campana',campana)),
+    addEmpresaFilter(sb.from('stock').select('*').eq('campana',campana))
   ]);
 
   const vc=ventas?.filter(v=>v.campana===campana)||[];
@@ -1102,6 +1192,7 @@ async function submitVenta(e){
   e.preventDefault();
   set('venta-alert','');
   const row={
+    empresa:getEmpresaForInsert(),
     fecha:v('v-fecha'), campana:v('v-campaña'), grano:v('v-grano'), tipo:v('v-tipo'),
     tons:num('v-tons'), usd_ton:num('v-usd'), prima_usd:numOpt('v-prima'),
     comprador:v('v-comprador')||null, comision:numOpt('v-com'),
@@ -1174,8 +1265,8 @@ async function delVenta(id){
 async function loadPres(){
   const c=document.getElementById('p-c').value;
   const [{data:pres},{data:ventas}]=await Promise.all([
-    sb.from('presupuesto').select('*').eq('campana',c).order('grano'),
-    sb.from('ventas').select('grano,tons,usd_ton').eq('campana',c)
+    addEmpresaFilter(sb.from('presupuesto').select('*').eq('campana',c)).order('grano'),
+    addEmpresaFilter(sb.from('ventas').select('grano,tons,usd_ton').eq('campana',c))
   ]);
   const vmap={};
   (ventas||[]).forEach(v=>{
@@ -1215,7 +1306,7 @@ async function savePres(){
   const c=document.getElementById('p-c').value;
   const g=v('np-g'),t=num('np-t'),p=numOpt('np-p');
   if(!g||isNaN(t)){alert('Completá grano y toneladas');return;}
-  const {error}=await sb.from('presupuesto').upsert([{campana:c,grano:g,tons_presupuestadas:t,precio_objetivo:p}],{onConflict:'campana,grano'});
+  const {error}=await sb.from('presupuesto').upsert([{empresa:getEmpresaForInsert(),campana:c,grano:g,tons_presupuestadas:t,precio_objetivo:p}],{onConflict:'campana,grano,empresa'});
   if(error){alert('Error: '+error.message);return;}
   document.getElementById('add-pres').style.display='none';
   document.getElementById('np-t').value='';
@@ -1255,8 +1346,8 @@ function copySql(){ navigator.clipboard.writeText(SQL).then(()=>alert('SQL copia
 async function loadStock(){
   const c=document.getElementById('st-c').value;
   const [{data:stockData},{data:ventas}]=await Promise.all([
-    sb.from('stock').select('*').eq('campana',c).order('grano'),
-    sb.from('ventas').select('grano,tons,tipo').eq('campana',c)
+    addEmpresaFilter(sb.from('stock').select('*').eq('campana',c)).order('grano'),
+    addEmpresaFilter(sb.from('ventas').select('grano,tons,tipo').eq('campana',c))
   ]);
 
   // Total vendido por grano
@@ -1313,7 +1404,7 @@ async function saveStock(){
   const tons=num('sk-tons'), fecha=v('sk-fecha');
   if(!lugar){setMsg('stock-msg','Ingresá el nombre del acopio.','err');return;}
   if(isNaN(tons)||tons<=0){setMsg('stock-msg','Ingresá toneladas válidas.','err');return;}
-  const {error}=await sb.from('stock').insert([{campana:c,grano:g,acopio:lugar,tons,fecha_ing:fecha||null,comentario:v('sk-com')||null}]);
+  const {error}=await sb.from('stock').insert([{empresa:getEmpresaForInsert(),campana:c,grano:g,acopio:lugar,tons,fecha_ing:fecha||null,comentario:v('sk-com')||null}]);
   if(error){setMsg('stock-msg','Error: '+error.message,'err');return;}
   document.getElementById('add-stock').style.display='none';
   document.getElementById('sk-tons').value='';
@@ -1391,23 +1482,31 @@ function loadServiceKey(){
 
 async function listUsers(){
   if(!adminSb){return;}
-  const {data,error}=await adminSb.auth.admin.listUsers();
+  const [{data:authData,error},{data:profiles}]=await Promise.all([
+    adminSb.auth.admin.listUsers(),
+    adminSb.from('user_profiles').select('*')
+  ]);
   if(error){
     document.getElementById('users-list').innerHTML=`<div class="alert alert-err">Error: ${error.message}</div>`;
     return;
   }
-  const users=data?.users||[];
-  let html=`<table><thead><tr><th>Email</th><th>Creado</th><th>Último acceso</th><th>Acciones</th></tr></thead><tbody>`;
-  if(!users.length) html+='<tr><td colspan="4" style="text-align:center;color:#6c757d;padding:16px">Sin usuarios</td></tr>';
+  const profMap={};
+  (profiles||[]).forEach(p=>profMap[p.id]=p);
+  const users=authData?.users||[];
+  let html=`<table><thead><tr><th>Email</th><th>Empresa</th><th>Rol</th><th>Último acceso</th><th>Acciones</th></tr></thead><tbody>`;
+  if(!users.length) html+='<tr><td colspan="5" style="text-align:center;color:#6c757d;padding:16px">Sin usuarios</td></tr>';
   users.forEach(u=>{
-    const esAdmin=u.email==='raimondifran@gmail.com';
+    const prof=profMap[u.id]||{};
+    const esAdmin=prof.rol==='admin';
+    const rolBadge={admin:'👑 Admin',staff:'👷 Staff',cliente:'🏢 Cliente'}[prof.rol]||'—';
     html+=`<tr>
-      <td><strong>${u.email}</strong>${esAdmin?' 👑':''}</td>
-      <td style="font-size:12px;color:#6c757d">${u.created_at?u.created_at.split('T')[0]:'—'}</td>
+      <td><strong>${u.email}</strong></td>
+      <td style="font-size:12px">${prof.empresa||'—'}</td>
+      <td style="font-size:12px">${rolBadge}</td>
       <td style="font-size:12px;color:#6c757d">${u.last_sign_in_at?u.last_sign_in_at.split('T')[0]:'Nunca'}</td>
       <td class="row-actions">
-        <button class="btn btn-sm" style="background:#e8f4fd;color:#1565c0;border:1px solid #bbdefb;padding:4px 10px;font-size:12px" onclick="resetPass('${u.id}','${u.email}')">🔑 Reset pass</button>
-        ${!u.email_confirmed_at?`<button class="btn btn-sm" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;padding:4px 10px;font-size:12px" onclick="confirmEmail('${u.id}','${u.email}')">✅ Confirmar</button>`:''}
+        <button class="btn btn-sm" style="background:#e8f4fd;color:#1565c0;border:1px solid #bbdefb;padding:4px 10px;font-size:12px" onclick="resetPass('${u.id}','${u.email}')">🔑 Pass</button>
+        ${!u.email_confirmed_at?`<button class="btn btn-sm" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;padding:4px 10px;font-size:12px" onclick="confirmEmail('${u.id}','${u.email}')">✅</button>`:''}
         ${esAdmin?'':`<button class="btn btn-danger" onclick="deleteUser('${u.id}','${u.email}')">🗑</button>`}
       </td>
     </tr>`;
@@ -1446,9 +1545,9 @@ async function exportarExcel(){
   el.textContent='Descargando datos...';
 
   const [{data:ventas},{data:pres},{data:stock}]=await Promise.all([
-    sb.from('ventas').select('*').order('fecha',{ascending:false}),
-    sb.from('presupuesto').select('*').order('campana').order('grano'),
-    sb.from('stock').select('*').order('campana').order('grano'),
+    addEmpresaFilter(sb.from('ventas').select('*')).order('fecha',{ascending:false}),
+    addEmpresaFilter(sb.from('presupuesto').select('*')).order('campana').order('grano'),
+    addEmpresaFilter(sb.from('stock').select('*')).order('campana').order('grano'),
   ]);
 
   const wb=XLSX.utils.book_new();
