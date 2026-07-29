@@ -211,6 +211,14 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
 
 <main>
 
+  <!-- ─────────────── BANNER BACKUP ─────────────── -->
+  <div id="backup-banner" style="display:none;background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:14px 20px;margin-bottom:18px;display:none;align-items:center;gap:14px;flex-wrap:wrap">
+    <span style="font-size:20px">📥</span>
+    <span style="flex:1;font-size:14px;color:#856404">Han pasado más de 30 días desde tu último backup. Te recomendamos descargar una copia de tu información.</span>
+    <button onclick="exportarExcelYMarcar()" style="padding:8px 16px;background:#1b4332;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600">⬇ Descargar ahora</button>
+    <button onclick="cerrarBanner()" style="padding:8px 12px;background:transparent;border:1px solid #856404;border-radius:8px;font-size:12px;cursor:pointer;color:#856404">Recordarme después</button>
+  </div>
+
   <!-- ─────────────── DASHBOARD ─────────────── -->
   <div id="view-dash" class="view active">
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap">
@@ -220,6 +228,7 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
         <option value="24/25">Campaña 24/25</option>
         <option value="26/27">Campaña 26/27</option>
       </select>
+      <button onclick="exportarExcel()" style="margin-left:auto;padding:7px 14px;background:#1b4332;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600">⬇ Exportar Excel</button>
     </div>
 
     <div class="kpi-grid" id="kpis">
@@ -821,6 +830,7 @@ async function showApp(user){
   // Selector de empresa para admin/staff
   await loadEmpresaSelector();
   nav('dash');
+  setTimeout(checkBackupBanner, 1500);
 }
 
 async function loadEmpresaSelector(){
@@ -1540,6 +1550,32 @@ async function resetPass(id, email){
 // ════════════════════════════════════════════════════════
 // EXPORTAR EXCEL
 // ════════════════════════════════════════════════════════
+function checkBackupBanner(){
+  const key='last_backup_'+(myProfile?.empresa||'default');
+  const last=localStorage.getItem(key);
+  const banner=document.getElementById('backup-banner');
+  if(!last){
+    // Primera vez: guardar hoy y no mostrar
+    localStorage.setItem(key, Date.now());
+    return;
+  }
+  const dias=(Date.now()-parseInt(last))/(1000*60*60*24);
+  if(dias>=30){
+    banner.style.display='flex';
+  }
+}
+
+function cerrarBanner(){
+  document.getElementById('backup-banner').style.display='none';
+}
+
+async function exportarExcelYMarcar(){
+  const key='last_backup_'+(myProfile?.empresa||'default');
+  localStorage.setItem(key, Date.now());
+  document.getElementById('backup-banner').style.display='none';
+  await exportarExcel();
+}
+
 async function exportarExcel(){
   const el=document.getElementById('export-msg');
   el.textContent='Descargando datos...';
@@ -1597,7 +1633,8 @@ async function exportarExcel(){
 
   // Descargar
   const fecha=new Date().toISOString().split('T')[0];
-  XLSX.writeFile(wb, `backup-agrop-raimondi-${fecha}.xlsx`);
+  const empNombre=(myProfile?.empresa||'agrop').toLowerCase().replace(/\s+/g,'-');
+  XLSX.writeFile(wb, `backup-${empNombre}-${fecha}.xlsx`);
   el.innerHTML='<span style="color:#065f46">✅ Backup descargado correctamente.</span>';
   setTimeout(()=>el.textContent='',4000);
 }
