@@ -217,6 +217,7 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
   <div class="nav-tab" id="tab-stock" onclick="nav('stock')">🏭 Inventario</div>
   <div class="nav-tab" id="tab-hist" onclick="nav('hist')">📋 Historial</div>
   <div class="nav-tab" id="tab-pres" onclick="nav('pres')">🎯 Presupuesto</div>
+  <div class="nav-tab" id="tab-misdatos" onclick="nav('misdatos')">🌾 Mis Datos</div>
   <div class="nav-spacer"></div>
   <div style="padding:0 12px;display:flex;align-items:center;gap:10px">
     <select id="nav-empresa" onchange="onEmpresaChange()" style="display:none;padding:4px 8px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:6px;color:#fff;font-size:12px;cursor:pointer"></select>
@@ -364,7 +365,8 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
         <div class="form-grid">
           <div class="form-group">
             <label>Lugar de entrega</label>
-            <input type="text" id="v-lugar" placeholder="Ej: ACA Necochea">
+            <input type="text" id="v-lugar" placeholder="Ej: ACA Necochea" list="dl-lugares">
+            <datalist id="dl-lugares"></datalist>
           </div>
           <div class="form-group">
             <label>Fecha entrega</label>
@@ -413,7 +415,8 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
           </div>
           <div class="form-group">
             <label>Acopio / Lugar</label>
-            <input type="text" id="sk-lugar" placeholder="Ej: ACA Necochea, Bolsa propia...">
+            <input type="text" id="sk-lugar" placeholder="Ej: ACA Necochea, Bolsa propia..." list="dl-lugares-stock">
+            <datalist id="dl-lugares-stock"></datalist>
           </div>
           <div class="form-group">
             <label>Toneladas</label>
@@ -503,6 +506,44 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
         <div style="margin-top:12px;display:flex;gap:8px">
           <button class="btn btn-primary btn-sm" onclick="savePres()">Guardar</button>
           <button class="btn btn-muted btn-sm" onclick="document.getElementById('add-pres').style.display='none'">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── MIS DATOS ─────────────── -->
+  <div id="view-misdatos" class="view">
+    <h2>🌾 Mis Datos</h2>
+    <p style="color:#6c757d;font-size:13px;margin-bottom:18px">Configurá los cereales que comercializás y tus acopios o lugares de entrega habituales. Estos datos se usan en los formularios de venta e inventario.</p>
+
+    <div class="two-col">
+      <!-- Granos activos -->
+      <div class="card">
+        <h3>Cereales que manejo</h3>
+        <p style="font-size:12px;color:#6c757d;margin-bottom:14px">Marcá los granos que querés ver en los formularios.</p>
+        <div id="md-granos-lista" style="display:flex;flex-direction:column;gap:10px">
+          <!-- generado por JS -->
+        </div>
+        <div style="margin-top:16px">
+          <button class="btn btn-primary btn-sm" onclick="guardarGranos()">💾 Guardar granos</button>
+          <span id="md-granos-msg" style="font-size:12px;margin-left:10px;color:#2e7d32"></span>
+        </div>
+      </div>
+
+      <!-- Acopios -->
+      <div class="card">
+        <h3>Mis acopios / lugares de entrega</h3>
+        <p style="font-size:12px;color:#6c757d;margin-bottom:14px">Agregá los acopios o lugares donde entregás habitualmente. Aparecerán como opciones en los formularios.</p>
+        <div id="md-acopios-lista" style="margin-bottom:12px">
+          <!-- generado por JS -->
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input type="text" id="md-nuevo-acopio" placeholder="Ej: ACA Necochea, Bolsa propia..." style="flex:1;padding:8px 11px;border:1px solid #dee2e6;border-radius:8px;font-size:13px">
+          <button class="btn btn-green btn-sm" onclick="agregarAcopio()">+ Agregar</button>
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn btn-primary btn-sm" onclick="guardarAcopios()">💾 Guardar acopios</button>
+          <span id="md-acopios-msg" style="font-size:12px;margin-left:10px;color:#2e7d32"></span>
         </div>
       </div>
     </div>
@@ -698,6 +739,10 @@ UPDATE ventas      SET empresa = 'Agrop Raimondi' WHERE empresa IS NULL;
 UPDATE presupuesto SET empresa = 'Agrop Raimondi' WHERE empresa IS NULL;
 UPDATE stock       SET empresa = 'Agrop Raimondi' WHERE empresa IS NULL;
 
+-- Columnas para configuración de usuario (Mis Datos)
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS granos_activos text[] DEFAULT ARRAY['Trigo','Cebada F','Cebada C','Girasol','Girasol AO','Colza','Maíz','Soja'];
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS acopios_usuario text[] DEFAULT ARRAY[]::text[];
+
 -- UNIQUE en presupuesto por empresa
 ALTER TABLE presupuesto DROP CONSTRAINT IF EXISTS presupuesto_campana_grano_key;
 ALTER TABLE presupuesto ADD CONSTRAINT IF NOT EXISTS pres_campana_grano_empresa UNIQUE (campana, grano, empresa);
@@ -847,6 +892,7 @@ async function showApp(user){
   // Selector de empresa para admin/staff
   await loadEmpresaSelector();
   nav('dash');
+  aplicarConfigUsuario();
   setTimeout(checkBackupBanner, 1500);
 }
 
@@ -871,7 +917,7 @@ function onEmpresaChange(){
     if(id==='dash') loadDash();
     else if(id==='hist') loadHist();
     else if(id==='pres') loadPres();
-    else if(id==='inv') loadInv();
+    else if(id==='stock') loadStock();
   }
 }
 
@@ -966,15 +1012,19 @@ async function createUser(){
 // ════════════════════════════════════════════════════════
 let mainChart=null;
 function nav(id){
-  ['dash','venta','hist','pres','conf'].forEach(x=>{
+  ['dash','venta','stock','hist','pres','misdatos','conf'].forEach(x=>{
     document.getElementById('view-'+x).classList.remove('active');
-    document.getElementById('tab-'+x).classList.remove('active');
+    const tab=document.getElementById('tab-'+x);
+    if(tab) tab.classList.remove('active');
   });
   document.getElementById('view-'+id).classList.add('active');
-  document.getElementById('tab-'+id).classList.add('active');
+  const tab=document.getElementById('tab-'+id);
+  if(tab) tab.classList.add('active');
   if(id==='dash') loadDash();
+  if(id==='stock') loadStock();
   if(id==='hist') loadHist();
   if(id==='pres') loadPres();
+  if(id==='misdatos') loadMisDatos();
 }
 
 // ════════════════════════════════════════════════════════
@@ -1444,6 +1494,125 @@ async function delStock(id){
   if(!confirm('¿Eliminás este registro de stock?')) return;
   await sb.from('stock').delete().eq('id',id);
   loadStock();
+}
+
+// ════════════════════════════════════════════════════════
+// MIS DATOS — granos y acopios por usuario
+// ════════════════════════════════════════════════════════
+let _acopiosLocal = [];   // copia editable en memoria
+
+async function loadMisDatos(){
+  if(!myProfile) return;
+  // Recarga el perfil fresco
+  const {data:prof}=await sb.from('user_profiles').select('granos_activos,acopios_usuario').eq('id',(await sb.auth.getUser()).data.user.id).single();
+  const granosActivos = prof?.granos_activos || GRAINS;
+  _acopiosLocal = [...(prof?.acopios_usuario || [])];
+
+  // Renderizar checkboxes de granos
+  const listaG = document.getElementById('md-granos-lista');
+  listaG.innerHTML = GRAINS.map(g=>`
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;padding:6px 10px;border-radius:8px;background:${granosActivos.includes(g)?'#f0f9f4':'#f8f9fa'};border:1px solid ${granosActivos.includes(g)?'#52b788':'#dee2e6'}">
+      <input type="checkbox" value="${g}" ${granosActivos.includes(g)?'checked':''} onchange="actualizarCheckbox(this)" style="width:16px;height:16px;accent-color:#52b788">
+      <strong>${g}</strong>
+    </label>
+  `).join('');
+
+  renderAcopiosList();
+}
+
+function actualizarCheckbox(el){
+  const label=el.closest('label');
+  if(el.checked){
+    label.style.background='#f0f9f4';
+    label.style.border='1px solid #52b788';
+  } else {
+    label.style.background='#f8f9fa';
+    label.style.border='1px solid #dee2e6';
+  }
+}
+
+function renderAcopiosList(){
+  const cont=document.getElementById('md-acopios-lista');
+  if(!_acopiosLocal.length){
+    cont.innerHTML='<p style="font-size:12px;color:#aaa;margin-bottom:6px">Sin acopios cargados aún.</p>';
+    return;
+  }
+  cont.innerHTML=_acopiosLocal.map((a,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 11px;margin-bottom:6px;background:#f8fdf8;border:1px solid #d1fae5;border-radius:8px;font-size:13px">
+      <span>📍 ${a}</span>
+      <button class="btn btn-danger" style="padding:3px 9px;font-size:11px" onclick="quitarAcopio(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function agregarAcopio(){
+  const inp=document.getElementById('md-nuevo-acopio');
+  const val=inp.value.trim();
+  if(!val){inp.focus();return;}
+  if(_acopiosLocal.includes(val)){inp.value='';return;}
+  _acopiosLocal.push(val);
+  inp.value='';
+  renderAcopiosList();
+}
+
+function quitarAcopio(i){
+  _acopiosLocal.splice(i,1);
+  renderAcopiosList();
+}
+
+async function guardarGranos(){
+  const checks=[...document.querySelectorAll('#md-granos-lista input[type=checkbox]')];
+  const seleccionados=checks.filter(c=>c.checked).map(c=>c.value);
+  if(!seleccionados.length){alert('Seleccioná al menos un grano.');return;}
+  const uid=(await sb.auth.getUser()).data.user.id;
+  const {error}=await sb.from('user_profiles').update({granos_activos:seleccionados}).eq('id',uid);
+  if(error){document.getElementById('md-granos-msg').style.color='#c62828';document.getElementById('md-granos-msg').textContent='Error: '+error.message;return;}
+  document.getElementById('md-granos-msg').textContent='✅ Guardado';
+  setTimeout(()=>document.getElementById('md-granos-msg').textContent='',3000);
+  // Actualizar dropdowns en formularios
+  actualizarDropdownsGranos(seleccionados);
+}
+
+async function guardarAcopios(){
+  const uid=(await sb.auth.getUser()).data.user.id;
+  const {error}=await sb.from('user_profiles').update({acopios_usuario:_acopiosLocal}).eq('id',uid);
+  if(error){document.getElementById('md-acopios-msg').style.color='#c62828';document.getElementById('md-acopios-msg').textContent='Error: '+error.message;return;}
+  document.getElementById('md-acopios-msg').textContent='✅ Guardado';
+  setTimeout(()=>document.getElementById('md-acopios-msg').textContent='',3000);
+  // Actualizar datalist de acopios en formularios
+  actualizarDatalistAcopios(_acopiosLocal);
+}
+
+function actualizarDropdownsGranos(granos){
+  // Actualizar select de grano en Nueva Venta, Inventario e Historial
+  const selects=['v-grano','sk-g','h-g'];
+  selects.forEach(id=>{
+    const sel=document.getElementById(id);
+    if(!sel) return;
+    const esHist=id==='h-g';
+    const anterior=sel.value;
+    sel.innerHTML=(esHist?'<option value="">Todos los granos</option>':'')+granos.map(g=>`<option value="${g}">${g}</option>`).join('');
+    if(!esHist) sel.innerHTML='<option value="">— Seleccionar —</option>'+granos.map(g=>`<option value="${g}">${g}</option>`).join('');
+    if(granos.includes(anterior)) sel.value=anterior;
+  });
+}
+
+function actualizarDatalistAcopios(acopios){
+  // Actualizar datalist en campos de lugar
+  ['dl-lugares','dl-lugares-stock'].forEach(id=>{
+    const dl=document.getElementById(id);
+    if(!dl) return;
+    dl.innerHTML=acopios.map(a=>`<option value="${a}">`).join('');
+  });
+}
+
+// Aplica la config del usuario al inicio de la app
+async function aplicarConfigUsuario(){
+  const uid=(await sb.auth.getUser()).data.user.id;
+  const {data:prof}=await sb.from('user_profiles').select('granos_activos,acopios_usuario').eq('id',uid).single();
+  if(!prof) return;
+  if(prof.granos_activos?.length) actualizarDropdownsGranos(prof.granos_activos);
+  if(prof.acopios_usuario?.length) actualizarDatalistAcopios(prof.acopios_usuario);
 }
 
 // ════════════════════════════════════════════════════════
