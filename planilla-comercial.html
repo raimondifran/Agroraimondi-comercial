@@ -1242,19 +1242,49 @@ async function loadDash(){
 
 function buildStockCard(stockData, ventas){
   if(!stockData.length) return '<p style="color:#6c757d;font-size:13px">Sin stock cargado. Andá a la pestaña <strong>🏭 Inventario</strong> para cargar el grano que tenés en acopio.</p>';
-  
-  // Group by grano+acopio
+
+  // Total vendido por grano (todas las ventas de la campaña)
+  const vendidoPorGrano={};
+  (ventas||[]).forEach(v=>{
+    if(!vendidoPorGrano[v.grano]) vendidoPorGrano[v.grano]=0;
+    vendidoPorGrano[v.grano]+=v.tons;
+  });
+
+  // Group stock by grano+acopio
   const grupos={};
   stockData.forEach(s=>{
     const key=s.grano+'||'+s.acopio;
     if(!grupos[key]) grupos[key]={grano:s.grano,acopio:s.acopio,tons:0};
     grupos[key].tons+=s.tons;
   });
-  
-  let html='<table><thead><tr><th>Grano</th><th>Acopio</th><th>Tons disponibles</th></tr></thead><tbody>';
-  Object.values(grupos).sort((a,b)=>a.grano.localeCompare(b.grano)).forEach(g=>{
-    html+=`<tr><td><strong>${g.grano}</strong></td><td>${g.acopio}</td><td><span style="font-weight:700;color:#2e7d32">${fmt(g.tons)} tn</span></td></tr>`;
+
+  // Total stock por grano (para repartir la resta proporcionalmente por acopio)
+  const stockPorGrano={};
+  Object.values(grupos).forEach(g=>{
+    if(!stockPorGrano[g.grano]) stockPorGrano[g.grano]=0;
+    stockPorGrano[g.grano]+=g.tons;
   });
+
+  let html='<table><thead><tr><th>Grano</th><th>Acopio</th><th>Stock ingresado</th><th>Vendido</th><th style="color:#2e7d32">Disponible</th></tr></thead><tbody>';
+  let hayDisponible=false;
+  Object.values(grupos).sort((a,b)=>a.grano.localeCompare(b.grano)).forEach(g=>{
+    const vendido=vendidoPorGrano[g.grano]||0;
+    const totalGrano=stockPorGrano[g.grano]||g.tons;
+    // Prorratear ventas entre acopios del mismo grano según proporción
+    const proporcion=totalGrano>0?g.tons/totalGrano:1;
+    const vendidoEsteAcopio=vendido*proporcion;
+    const disponible=Math.max(0, g.tons-vendidoEsteAcopio);
+    if(disponible>0) hayDisponible=true;
+    const colorDisp=disponible>0?'#2e7d32':'#c62828';
+    html+=`<tr>
+      <td><strong>${g.grano}</strong></td>
+      <td>${g.acopio}</td>
+      <td style="color:#6c757d">${fmt(g.tons)} tn</td>
+      <td style="color:#1565c0">${fmt(vendidoEsteAcopio)} tn</td>
+      <td><span style="font-weight:700;color:${colorDisp}">${fmt(disponible)} tn</span></td>
+    </tr>`;
+  });
+  if(!hayDisponible) html+='<tr><td colspan="5" style="text-align:center;color:#c62828;padding:10px;font-size:12px">⚠️ Sin stock disponible — todo vendido</td></tr>';
   html+='</tbody></table>';
   return html;
 }
