@@ -1233,7 +1233,7 @@ async function loadDash(){
       <td>${esAf?'<span style="color:#c62828">A fijar</span>':'U$S '+fmt(v.usd_ton,0)}</td>
       <td>${v.comprador||'—'}</td>
       <td style="font-size:12px;color:#6c757d">${v.ent_lugar||v.comentario||'—'}</td>
-      <td><input type="checkbox" ${v.entregado?'checked':''} onchange="marcarEntregado(${v.id},this.checked)" title="Marcar como entregado"></td>
+      <td>${v.tipo==='Forward'?`<input type="checkbox" ${v.entregado?'checked':''} onchange="marcarEntregado(${v.id},this.checked)" title="Marcar como entregado">`:'—'}</td>
     </tr>`;
   });
   rt+='</tbody></table>';
@@ -1243,10 +1243,9 @@ async function loadDash(){
 function buildStockCard(stockData, ventas){
   if(!stockData.length) return '<p style="color:#6c757d;font-size:13px">Sin stock cargado. Andá a la pestaña <strong>🏭 Inventario</strong> para cargar el grano que tenés en acopio.</p>';
 
-  // Entregado por grano+acopio: SOLO ventas marcadas como entregadas
+  // Entregado por grano+acopio: usa ent_lugar si está; si no, cae en comprador
   const vendidoPorGranoAcopio={};
   (ventas||[]).forEach(v=>{
-    if(!v.entregado) return;
     const lugar=(v.ent_lugar||v.comprador||'').trim();
     if(!lugar) return;
     const key=v.grano+'||'+lugar;
@@ -1264,10 +1263,14 @@ function buildStockCard(stockData, ventas){
 
   let html='<table><thead><tr><th>Grano</th><th>Acopio</th><th>Stock ingresado</th><th>Entregado aquí</th><th style="color:#2e7d32">Disponible</th></tr></thead><tbody>';
   let hayDisponible=false;
-  Object.values(grupos).sort((a,b)=>a.grano.localeCompare(b.grano)).forEach(g=>{
+
+  // Filas de stock existente
+  const filasYaMostradas=new Set();
+  Object.values(grupos).sort((a,b)=>a.grano.localeCompare(b.grano)||a.acopio.localeCompare(b.acopio)).forEach(g=>{
     const key=g.grano+'||'+g.acopio.trim();
+    filasYaMostradas.add(key);
     const vendidoEsteAcopio=vendidoPorGranoAcopio[key]||0;
-    const disponible=Math.max(0, g.tons-vendidoEsteAcopio);
+    const disponible=g.tons-vendidoEsteAcopio;
     if(disponible>0) hayDisponible=true;
     const colorDisp=disponible>0?'#2e7d32':'#c62828';
     html+=`<tr>
@@ -1278,6 +1281,21 @@ function buildStockCard(stockData, ventas){
       <td><span style="font-weight:700;color:${colorDisp}">${fmt(disponible)} tn</span></td>
     </tr>`;
   });
+
+  // Filas extra: ventas a lugares sin stock registrado
+  Object.entries(vendidoPorGranoAcopio).sort().forEach(([key,vendido])=>{
+    if(filasYaMostradas.has(key)) return;
+    const [grano,acopio]=key.split('||');
+    const disponible=-vendido;
+    html+=`<tr style="background:#fff8f8">
+      <td><strong>${grano}</strong></td>
+      <td>${acopio} <span style="font-size:10px;color:#c62828">sin stock</span></td>
+      <td style="color:#6c757d">0 tn</td>
+      <td style="color:#1565c0">${fmt(vendido)} tn</td>
+      <td><span style="font-weight:700;color:#c62828">${fmt(disponible)} tn</span></td>
+    </tr>`;
+  });
+
   if(!hayDisponible) html+='<tr><td colspan="5" style="text-align:center;color:#c62828;padding:10px;font-size:12px">⚠️ Sin stock disponible — todo vendido</td></tr>';
   html+='</tbody></table>';
   return html;
@@ -1341,7 +1359,7 @@ async function loadHist(){
       <td>${row.comprador||'—'}</td>
       <td>${row.comision?row.comision+'%':'—'}</td>
       <td style="font-size:12px;color:#6c757d;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${row.comentario||''}</td>
-      <td style="text-align:center"><input type="checkbox" ${row.entregado?'checked':''} onchange="marcarEntregado(${row.id},this.checked)" title="Marcar como entregado" style="width:16px;height:16px;cursor:pointer"></td>
+      <td style="text-align:center">${row.tipo==='Forward'?`<input type="checkbox" ${row.entregado?'checked':''} onchange="marcarEntregado(${row.id},this.checked)" title="Marcar como entregado" style="width:16px;height:16px;cursor:pointer">`:'—'}</td>
       <td class="row-actions">
         <button class="btn btn-muted btn-danger" style="background:#e8f4fd;color:#1565c0;border:1px solid #bbdefb" onclick="openEdit(${JSON.stringify(row).replace(/"/g,'&quot;')})">✏️</button>
         <button class="btn btn-danger" onclick="delVenta(${row.id})">🗑</button>
