@@ -1233,7 +1233,7 @@ async function loadDash(){
       <td>${esAf?'<span style="color:#c62828">A fijar</span>':'U$S '+fmt(v.usd_ton,0)}</td>
       <td>${v.comprador||'—'}</td>
       <td style="font-size:12px;color:#6c757d">${v.ent_lugar||v.comentario||'—'}</td>
-      <td>${v.tipo==='Forward'?`<input type="checkbox" ${v.entregado?'checked':''} onchange="marcarEntregado(${v.id},this.checked)" title="Marcar como entregado">`:'—'}</td>
+      <td><input type="checkbox" ${v.entregado?'checked':''} onchange="marcarEntregado(${v.id},this.checked)" title="Marcar como entregado"></td>
     </tr>`;
   });
   rt+='</tbody></table>';
@@ -1243,11 +1243,15 @@ async function loadDash(){
 function buildStockCard(stockData, ventas){
   if(!stockData.length) return '<p style="color:#6c757d;font-size:13px">Sin stock cargado. Andá a la pestaña <strong>🏭 Inventario</strong> para cargar el grano que tenés en acopio.</p>';
 
-  // Total vendido por grano (todas las ventas de la campaña)
-  const vendidoPorGrano={};
+  // Entregado por grano+acopio: SOLO ventas marcadas como entregadas
+  const vendidoPorGranoAcopio={};
   (ventas||[]).forEach(v=>{
-    if(!vendidoPorGrano[v.grano]) vendidoPorGrano[v.grano]=0;
-    vendidoPorGrano[v.grano]+=v.tons;
+    if(!v.entregado) return;
+    const lugar=(v.ent_lugar||v.comprador||'').trim();
+    if(!lugar) return;
+    const key=v.grano+'||'+lugar;
+    if(!vendidoPorGranoAcopio[key]) vendidoPorGranoAcopio[key]=0;
+    vendidoPorGranoAcopio[key]+=v.tons;
   });
 
   // Group stock by grano+acopio
@@ -1258,21 +1262,11 @@ function buildStockCard(stockData, ventas){
     grupos[key].tons+=s.tons;
   });
 
-  // Total stock por grano (para repartir la resta proporcionalmente por acopio)
-  const stockPorGrano={};
-  Object.values(grupos).forEach(g=>{
-    if(!stockPorGrano[g.grano]) stockPorGrano[g.grano]=0;
-    stockPorGrano[g.grano]+=g.tons;
-  });
-
-  let html='<table><thead><tr><th>Grano</th><th>Acopio</th><th>Stock ingresado</th><th>Vendido</th><th style="color:#2e7d32">Disponible</th></tr></thead><tbody>';
+  let html='<table><thead><tr><th>Grano</th><th>Acopio</th><th>Stock ingresado</th><th>Entregado aquí</th><th style="color:#2e7d32">Disponible</th></tr></thead><tbody>';
   let hayDisponible=false;
   Object.values(grupos).sort((a,b)=>a.grano.localeCompare(b.grano)).forEach(g=>{
-    const vendido=vendidoPorGrano[g.grano]||0;
-    const totalGrano=stockPorGrano[g.grano]||g.tons;
-    // Prorratear ventas entre acopios del mismo grano según proporción
-    const proporcion=totalGrano>0?g.tons/totalGrano:1;
-    const vendidoEsteAcopio=vendido*proporcion;
+    const key=g.grano+'||'+g.acopio.trim();
+    const vendidoEsteAcopio=vendidoPorGranoAcopio[key]||0;
     const disponible=Math.max(0, g.tons-vendidoEsteAcopio);
     if(disponible>0) hayDisponible=true;
     const colorDisp=disponible>0?'#2e7d32':'#c62828';
@@ -1280,7 +1274,7 @@ function buildStockCard(stockData, ventas){
       <td><strong>${g.grano}</strong></td>
       <td>${g.acopio}</td>
       <td style="color:#6c757d">${fmt(g.tons)} tn</td>
-      <td style="color:#1565c0">${fmt(vendidoEsteAcopio)} tn</td>
+      <td style="color:#1565c0">${vendidoEsteAcopio>0?fmt(vendidoEsteAcopio)+' tn':'—'}</td>
       <td><span style="font-weight:700;color:${colorDisp}">${fmt(disponible)} tn</span></td>
     </tr>`;
   });
@@ -1347,7 +1341,7 @@ async function loadHist(){
       <td>${row.comprador||'—'}</td>
       <td>${row.comision?row.comision+'%':'—'}</td>
       <td style="font-size:12px;color:#6c757d;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${row.comentario||''}</td>
-      <td style="text-align:center">${row.tipo==='Forward'?`<input type="checkbox" ${row.entregado?'checked':''} onchange="marcarEntregado(${row.id},this.checked)" title="Marcar como entregado" style="width:16px;height:16px;cursor:pointer">`:'—'}</td>
+      <td style="text-align:center"><input type="checkbox" ${row.entregado?'checked':''} onchange="marcarEntregado(${row.id},this.checked)" title="Marcar como entregado" style="width:16px;height:16px;cursor:pointer"></td>
       <td class="row-actions">
         <button class="btn btn-muted btn-danger" style="background:#e8f4fd;color:#1565c0;border:1px solid #bbdefb" onclick="openEdit(${JSON.stringify(row).replace(/"/g,'&quot;')})">✏️</button>
         <button class="btn btn-danger" onclick="delVenta(${row.id})">🗑</button>
