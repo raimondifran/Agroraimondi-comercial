@@ -270,6 +270,16 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
       </div>
     </div>
 
+    <!-- Fijaciones pendientes -->
+    <div class="card" id="card-fijaciones" style="display:none;border-top:3px solid #e63946;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <h3 style="color:#c62828">📋 Fijaciones pendientes</h3>
+        <button class="btn btn-primary btn-sm" onclick="guardarFijaciones()" style="font-size:12px">💾 Guardar</button>
+      </div>
+      <p style="font-size:12px;color:#6c757d;margin-bottom:14px">Ingresá las toneladas ya fijadas. El saldo pendiente se actualiza automáticamente.</p>
+      <div id="fijaciones-body"></div>
+    </div>
+
     <!-- Precios promedio -->
     <div class="card">
       <h3>Precios Promedio por Grano (U$S/tn)</h3>
@@ -1130,6 +1140,9 @@ async function loadDash(){
   }
   set('afijar-detail', afwdHtml);
 
+  // ── FIJACIONES PENDIENTES ──
+  renderFijaciones(afMap);
+
   // ── TABLA DETALLE POR GRANO ──
   let gt=`<table><thead><tr>
     <th>Grano</th><th>Stock en acopio</th><th>FWD pendiente</th><th>FWD entregado</th>
@@ -1318,6 +1331,88 @@ function buildStockCard(stockData, ventas){
 async function marcarEntregado(id, val){
   await sb.from('ventas').update({entregado:val}).eq('id',id);
 }
+
+// ════════════════════════════════════════════════════════
+// FIJACIONES PENDIENTES
+// ════════════════════════════════════════════════════════
+function _fijKey(){
+  // Clave por empresa para separar usuarios
+  return 'fijaciones_' + (myProfile?.empresa || 'default');
+}
+
+function renderFijaciones(afMap){
+  const card = document.getElementById('card-fijaciones');
+  const body = document.getElementById('fijaciones-body');
+
+  // Granos con "A fijar" > 0
+  const granosAf = GRAINS.filter(g => afMap[g] > 0);
+  if(!granosAf.length){ card.style.display='none'; return; }
+
+  // Cargar fijadas guardadas
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(_fijKey()) || '{}'); } catch(e){}
+
+  // Calcular pendiente total
+  const totalPend = granosAf.reduce((s,g)=>{
+    const fijadas = Math.min(parseFloat(saved[g])||0, afMap[g]);
+    return s + (afMap[g] - fijadas);
+  }, 0);
+
+  if(totalPend <= 0){ card.style.display='none'; return; }
+  card.style.display='block';
+
+  let html = '<table><thead><tr><th>Grano</th><th>Total a fijar</th><th>Ya fijadas (tn)</th><th style="color:#c62828">Pendiente</th></tr></thead><tbody>';
+  granosAf.forEach(g=>{
+    const total = afMap[g];
+    const fijadas = Math.min(parseFloat(saved[g])||0, total);
+    const pend = total - fijadas;
+    const colorPend = pend<=0 ? '#2e7d32' : '#c62828';
+    html += `<tr>
+      <td><strong>${g}</strong></td>
+      <td style="color:#6c757d">${fmt(total)} tn</td>
+      <td><input type="number" id="fij-${g}" value="${fijadas||''}" min="0" max="${total}" step="0.001"
+          style="width:110px;padding:5px 8px;border:1px solid #dee2e6;border-radius:6px;font-size:13px"
+          oninput="actualizarPendiente('${g}',${total})"></td>
+      <td><span id="fij-pend-${g}" style="font-weight:700;color:${colorPend}">${fmt(pend)} tn</span></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  body.innerHTML = html;
+}
+
+function actualizarPendiente(grano, total){
+  const inp = document.getElementById('fij-'+grano);
+  const fijadas = Math.min(parseFloat(inp.value)||0, total);
+  const pend = total - fijadas;
+  const span = document.getElementById('fij-pend-'+grano);
+  span.style.color = pend<=0 ? '#2e7d32' : '#c62828';
+  span.textContent = fmt(pend) + ' tn';
+}
+
+function guardarFijaciones(){
+  const data = {};
+  document.querySelectorAll('[id^="fij-"]').forEach(inp=>{
+    if(!inp.id.startsWith('fij-pend-') && inp.tagName==='INPUT'){
+      const g = inp.id.replace('fij-','');
+      data[g] = parseFloat(inp.value)||0;
+    }
+  });
+  try { localStorage.setItem(_fijKey(), JSON.stringify(data)); } catch(e){}
+  // Refrescar: si todo quedó en 0, ocultar card
+  const card = document.getElementById('card-fijaciones');
+  const totalPend = Object.keys(data).reduce((s,g)=>{
+    const inp=document.getElementById('fij-'+g);
+    if(!inp) return s;
+    return s + (parseFloat(inp.max)||0) - (data[g]||0);
+  },0);
+  if(totalPend<=0) card.style.display='none';
+  // Mostrar confirmación breve
+  const btn = card.querySelector('button');
+  const orig = btn.textContent;
+  btn.textContent = '✅ Guardado';
+  setTimeout(()=>btn.textContent=orig, 2000);
+}
+
 // ════════════════════════════════════════════════════════
 // NUEVA VENTA
 // ════════════════════════════════════════════════════════
