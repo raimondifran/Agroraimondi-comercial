@@ -348,12 +348,8 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
           </div>
           <div class="form-group">
             <label>Comprador</label>
-            <select id="v-comprador">
-              <option value="">— Seleccionar —</option>
-              <option>ACA</option><option>IRIBERRI</option><option>AGROGENERALES</option>
-              <option>RURAL CERES</option><option>NAVAS</option><option>SILOS/bolsa</option>
-              <option>Mingari</option><option>Coop Neco</option><option>OTRO</option>
-            </select>
+            <input type="text" id="v-comprador" placeholder="Ej: ACA, AGROGENERALES..." list="dl-compradores" autocomplete="off">
+            <datalist id="dl-compradores"></datalist>
           </div>
           <div class="form-group">
             <label>Comisión %</label>
@@ -547,6 +543,26 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
         </div>
       </div>
     </div>
+
+    <!-- Compradores -->
+    <div class="two-col" style="margin-top:20px">
+      <div class="card">
+        <h3>Mis compradores</h3>
+        <p style="font-size:12px;color:#6c757d;margin-bottom:14px">Agregá los compradores habituales. Aparecerán como opciones en el formulario de venta.</p>
+        <div id="md-compradores-lista" style="margin-bottom:12px">
+          <!-- generado por JS -->
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input type="text" id="md-nuevo-comprador" placeholder="Ej: ACA, AGROGENERALES..." style="flex:1;padding:8px 11px;border:1px solid #dee2e6;border-radius:8px;font-size:13px">
+          <button class="btn btn-green btn-sm" onclick="agregarComprador()">+ Agregar</button>
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn btn-primary btn-sm" onclick="guardarCompradores()">💾 Guardar compradores</button>
+          <span id="md-compradores-msg" style="font-size:12px;margin-left:10px;color:#2e7d32"></span>
+        </div>
+      </div>
+      <div></div>
+    </div>
   </div>
 
   <!-- ─────────────── CONFIG ─────────────── -->
@@ -675,12 +691,8 @@ pre.sql{background:#0f1117;color:#a8ff78;padding:14px;border-radius:8px;font-siz
       <div class="form-group"><label>U$S / Tonelada *</label><input type="number" id="edit-usd" step="0.01" min="0"></div>
       <div class="form-group"><label>Prima (U$S/ton)</label><input type="number" id="edit-prima" step="0.01"></div>
       <div class="form-group"><label>Comprador</label>
-        <select id="edit-comprador">
-          <option value="">— Seleccionar —</option>
-          <option>ACA</option><option>IRIBERRI</option><option>AGROGENERALES</option>
-          <option>RURAL CERES</option><option>NAVAS</option><option>SILOS/bolsa</option>
-          <option>Mingari</option><option>Coop Neco</option><option>OTRO</option>
-        </select>
+        <input type="text" id="edit-comprador" placeholder="Ej: ACA, AGROGENERALES..." list="dl-compradores-edit" autocomplete="off">
+        <datalist id="dl-compradores-edit"></datalist>
       </div>
       <div class="form-group"><label>Comisión %</label><input type="number" id="edit-com" step="0.1" min="0"></div>
       <div class="form-group"><label>Lugar entrega</label><input type="text" id="edit-lugar"></div>
@@ -742,6 +754,7 @@ UPDATE stock       SET empresa = 'Agrop Raimondi' WHERE empresa IS NULL;
 -- Columnas para configuración de usuario (Mis Datos)
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS granos_activos text[] DEFAULT ARRAY['Trigo','Cebada F','Cebada C','Girasol','Girasol AO','Colza','Maíz','Soja'];
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS acopios_usuario text[] DEFAULT ARRAY[]::text[];
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS compradores_usuario text[] DEFAULT ARRAY[]::text[];
 
 -- UNIQUE en presupuesto por empresa
 ALTER TABLE presupuesto DROP CONSTRAINT IF EXISTS presupuesto_campana_grano_key;
@@ -1271,6 +1284,7 @@ function buildStockCard(stockData, ventas){
     filasYaMostradas.add(key);
     const vendidoEsteAcopio=vendidoPorGranoAcopio[key]||0;
     const disponible=g.tons-vendidoEsteAcopio;
+    if(disponible===0) return; // ocultar filas con disponible exactamente 0
     if(disponible>0) hayDisponible=true;
     const colorDisp=disponible>0?'#2e7d32':'#c62828';
     html+=`<tr>
@@ -1541,14 +1555,16 @@ async function delStock(id){
 // ════════════════════════════════════════════════════════
 // MIS DATOS — granos y acopios por usuario
 // ════════════════════════════════════════════════════════
-let _acopiosLocal = [];   // copia editable en memoria
+let _acopiosLocal = [];      // copia editable en memoria
+let _compradoresLocal = [];  // copia editable en memoria
 
 async function loadMisDatos(){
   if(!myProfile) return;
   // Recarga el perfil fresco
-  const {data:prof}=await sb.from('user_profiles').select('granos_activos,acopios_usuario').eq('id',(await sb.auth.getUser()).data.user.id).single();
+  const {data:prof}=await sb.from('user_profiles').select('granos_activos,acopios_usuario,compradores_usuario').eq('id',(await sb.auth.getUser()).data.user.id).single();
   const granosActivos = prof?.granos_activos || GRAINS;
   _acopiosLocal = [...(prof?.acopios_usuario || [])];
+  _compradoresLocal = [...(prof?.compradores_usuario || [])];
 
   // Renderizar checkboxes de granos
   const listaG = document.getElementById('md-granos-lista');
@@ -1560,6 +1576,7 @@ async function loadMisDatos(){
   `).join('');
 
   renderAcopiosList();
+  renderCompradoresList();
 }
 
 function actualizarCheckbox(el){
@@ -1625,6 +1642,56 @@ async function guardarAcopios(){
   actualizarDatalistAcopios(_acopiosLocal);
 }
 
+// ── Compradores ──
+function renderCompradoresList(){
+  const cont=document.getElementById('md-compradores-lista');
+  if(!cont) return;
+  if(!_compradoresLocal.length){
+    cont.innerHTML='<p style="font-size:12px;color:#aaa;margin-bottom:6px">Sin compradores cargados aún.</p>';
+    return;
+  }
+  cont.innerHTML=_compradoresLocal.map((c,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 11px;margin-bottom:6px;background:#f8f9ff;border:1px solid #dbeafe;border-radius:8px;font-size:13px">
+      <span>🏢 ${c}</span>
+      <button class="btn btn-danger" style="padding:3px 9px;font-size:11px" onclick="quitarComprador(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function agregarComprador(){
+  const inp=document.getElementById('md-nuevo-comprador');
+  const val=inp.value.trim().toUpperCase();
+  if(!val){inp.focus();return;}
+  if(_compradoresLocal.includes(val)){inp.value='';return;}
+  _compradoresLocal.push(val);
+  inp.value='';
+  renderCompradoresList();
+}
+
+function quitarComprador(i){
+  _compradoresLocal.splice(i,1);
+  renderCompradoresList();
+}
+
+async function guardarCompradores(){
+  const uid=(await sb.auth.getUser()).data.user.id;
+  const {error}=await sb.from('user_profiles').update({compradores_usuario:_compradoresLocal}).eq('id',uid);
+  const msg=document.getElementById('md-compradores-msg');
+  if(error){msg.style.color='#c62828';msg.textContent='Error: '+error.message;return;}
+  msg.style.color='#2e7d32';
+  msg.textContent='✅ Guardado';
+  setTimeout(()=>msg.textContent='',3000);
+  actualizarDatalistCompradores(_compradoresLocal);
+}
+
+function actualizarDatalistCompradores(compradores){
+  ['dl-compradores','dl-compradores-edit'].forEach(id=>{
+    const dl=document.getElementById(id);
+    if(!dl) return;
+    dl.innerHTML=compradores.map(c=>`<option value="${c}">`).join('');
+  });
+}
+
 function actualizarDropdownsGranos(granos){
   // Actualizar select de grano en Nueva Venta, Inventario e Historial
   const selects=['v-grano','sk-g','h-g'];
@@ -1651,10 +1718,11 @@ function actualizarDatalistAcopios(acopios){
 // Aplica la config del usuario al inicio de la app
 async function aplicarConfigUsuario(){
   const uid=(await sb.auth.getUser()).data.user.id;
-  const {data:prof}=await sb.from('user_profiles').select('granos_activos,acopios_usuario').eq('id',uid).single();
+  const {data:prof}=await sb.from('user_profiles').select('granos_activos,acopios_usuario,compradores_usuario').eq('id',uid).single();
   if(!prof) return;
   if(prof.granos_activos?.length) actualizarDropdownsGranos(prof.granos_activos);
   if(prof.acopios_usuario?.length) actualizarDatalistAcopios(prof.acopios_usuario);
+  if(prof.compradores_usuario?.length) actualizarDatalistCompradores(prof.compradores_usuario);
 }
 
 // ════════════════════════════════════════════════════════
